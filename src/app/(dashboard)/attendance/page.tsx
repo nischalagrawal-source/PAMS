@@ -279,14 +279,14 @@ export default function AttendancePage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-500">Punctuality</p>
-                <p className={cn("mt-1 text-sm font-medium", (today as Record<string, unknown>).isLate ? "text-red-600" : "text-green-600")}>
-                  {(today as Record<string, unknown>).isLate ? `Late by ${(today as Record<string, unknown>).lateByMinutes}min` : "On Time"}
+                <p className={cn("mt-1 text-sm font-medium", today.isLate ? "text-red-600" : "text-green-600")}>
+                  {today.isLate ? `Late by ${today.lateByMinutes}min` : "On Time"}
                 </p>
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-500">Half Day</p>
-                <p className={cn("mt-1 text-sm font-medium", (today as Record<string, unknown>).isHalfDay ? "text-red-600" : "text-green-600")}>
-                  {(today as Record<string, unknown>).isHalfDay ? "Yes" : "No"}
+                <p className={cn("mt-1 text-sm font-medium", today.isHalfDay ? "text-red-600" : "text-green-600")}>
+                  {today.isHalfDay ? "Yes" : "No"}
                 </p>
               </div>
               <div>
@@ -435,10 +435,10 @@ export default function AttendancePage() {
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-3.5">
-                      {(record as Record<string, unknown>).isLate ? (
+                      {record.isLate ? (
                         <span className="text-xs font-medium text-red-600">
-                          {(record as Record<string, unknown>).lateByMinutes}min late
-                          {(record as Record<string, unknown>).isHalfDay && <span className="ml-1 rounded bg-red-100 px-1 text-red-700">Half Day</span>}
+                          {record.lateByMinutes}min late
+                          {record.isHalfDay && <span className="ml-1 rounded bg-red-100 px-1 text-red-700">Half Day</span>}
                         </span>
                       ) : (
                         <span className="text-xs text-green-600">On time</span>

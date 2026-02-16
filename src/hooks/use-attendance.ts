@@ -19,6 +19,9 @@ interface AttendanceRecord {
   totalHours: number | null;
   overtimeHours: number | null;
   isWfh: boolean;
+  isLate: boolean;
+  lateByMinutes: number;
+  isHalfDay: boolean;
   notes: string | null;
   geoFence?: { id: string; label: string; latitude: number; longitude: number; radiusM: number } | null;
   geoExitLogs?: Array<{ id: string; exitTime: string; returnTime: string | null; distanceFromFence: number }>;
