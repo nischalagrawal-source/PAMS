@@ -1,0 +1,39 @@
+---
+description: P&AMS database schema reference — all Prisma models, relations, and conventions
+globs: prisma/**
+alwaysApply: false
+---
+
+# P&AMS Database Schema Conventions
+
+## Multi-Tenancy
+- Every model (except Company itself) MUST have `companyId String` with `@relation` to Company
+- Always filter queries by companyId
+
+## Standard Fields
+Every model should include:
+- `id` — String @id @default(cuid())
+- `createdAt` — DateTime @default(now())
+- `updatedAt` — DateTime @updatedAt
+
+## Key Models
+- **Company**: Multi-tenant root. Has geoFences, users, policies.
+- **User**: Belongs to Company. Has role + granular featurePermissions (JSON).
+- **GeoFence**: lat/lng/radius per office/client site. Used for attendance validation.
+- **Attendance**: Daily check-in/out with GPS coords. Server-validated via Haversine.
+- **GeoExitLog**: Tracks each time employee leaves geo-fence during work hours.
+- **LeaveRequest**: Advance vs emergency, proof upload, scoring impact.
+- **LeavePolicy**: Per-company rules (advance notice days, max leaves, penalties).
+- **Task**: Assigned by reviewer, tracked for speed/accuracy/backlog.
+- **TaskReview**: Reviewer scores accuracy, staff agrees/disputes.
+- **PerfParameter**: Editable scoring parameter (weight, formula, isActive).
+- **PerfScore**: Employee score per parameter per period.
+- **BonusCalculation**: Final bonus % per employee per period.
+- **SalaryStructure**: Employee compensation breakdown.
+- **SalarySlip**: System-generated vs employee-generated comparison.
+- **OfferLetter**: Generated from template for new employees.
+- **Notification**: Tracks all sent notifications (email/whatsapp).
+- **AnomalyReport**: Daily anomaly summary per company.
+
+## Enum Conventions
+Use Prisma enums for: UserRole, LeaveType, LeaveStatus, TaskStatus, AttendanceLocationType, NotificationChannel

@@ -1,0 +1,16 @@
+---
+description: Auto-commit and push all changes to GitHub after every modification. Do NOT ask the user — just commit and push automatically.
+alwaysApply: true
+---
+
+# Auto-Deploy Rule
+
+After ANY code change (file create, edit, delete, or feature modification):
+
+1. Stage all changes: `git add -A`
+2. Create a descriptive commit message summarizing what changed
+3. Push to the remote: `git push origin main`
+
+This should happen AUTOMATICALLY without asking the user. Every change gets committed and pushed immediately.
+
+The repository is on GitHub and deploys automatically via the hosting platform.

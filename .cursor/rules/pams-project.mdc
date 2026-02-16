@@ -1,0 +1,128 @@
+---
+description: P&AMS - Performance & Attendance Management System — core architecture, tech stack, modules, and conventions. This rule provides full project context for every AI session.
+alwaysApply: true
+---
+
+# P&AMS — Performance & Attendance Management System
+
+## Project Overview
+Multi-tenant performance and attendance management system for a group of 3-4 companies (~50 staff). Tracks employee performance across editable weighted parameters, manages attendance with strict geo-fencing, handles leave workflows, task assignment, salary/payroll, and generates anomaly reports.
+
+## Tech Stack
+- **Framework**: Next.js 14+ (App Router, Server Components)
+- **Language**: TypeScript (strict mode)
+- **UI**: shadcn/ui + Tailwind CSS + Framer Motion
+- **Client State**: TanStack Query (React Query) for server state caching
+- **ORM**: Prisma with PostgreSQL
+- **Auth**: NextAuth.js v5 (Auth.js) with credentials provider
+- **Database**: PostgreSQL (Railway or Neon)
+- **File Storage**: Cloudflare R2 (proof uploads, offer letters, salary slips)
+- **Notifications**: Pluggable provider pattern (Email via Resend first, WhatsApp added later)
+- **PDF Generation**: @react-pdf/renderer
+- **Mobile**: PWA (responsive web app, Add-to-Home-Screen)
+- **Hosting**: Vercel
+
+## Folder Structure
+```
+src/
+├── app/                      # Next.js App Router
+│   ├── (auth)/               # Login, register, forgot password
+│   │   ├── login/
+│   │   └── register/
+│   ├── (dashboard)/          # Authenticated app shell
+│   │   ├── layout.tsx        # Sidebar + topbar layout
+│   │   ├── page.tsx          # Dashboard home
+│   │   ├── attendance/
+│   │   ├── leaves/
+│   │   ├── tasks/
+│   │   ├── performance/
+│   │   ├── salary/
+│   │   ├── reports/
+│   │   └── admin/
+│   │       ├── users/
+│   │       ├── companies/
+│   │       ├── geofences/
+│   │       ├── parameters/
+│   │       └── rights/
+│   └── api/                  # API routes
+│       ├── auth/
+│       ├── attendance/
+│       ├── leaves/
+│       ├── tasks/
+│       ├── performance/
+│       ├── salary/
+│       ├── notifications/
+│       └── admin/
+├── components/
+│   ├── ui/                   # shadcn/ui components
+│   ├── layout/               # Sidebar, Topbar, Shell
+│   ├── forms/                # Reusable form components
+│   └── charts/               # Performance charts
+├── lib/
+│   ├── db.ts                 # Prisma client singleton
+│   ├── auth.ts               # NextAuth configuration
+│   ├── auth-options.ts       # Auth options
+│   ├── geo.ts                # Haversine formula, geo-fence validation
+│   ├── performance.ts        # Score calculation engine
+│   ├── notifications.ts      # Notification provider abstraction
+│   ├── anomaly.ts            # Anomaly detection logic
+│   ├── utils.ts              # Common utilities
+│   └── constants.ts          # App constants
+├── hooks/                    # Custom React hooks
+├── types/                    # TypeScript type definitions
+└── middleware.ts             # Auth + multi-tenancy middleware
+prisma/
+└── schema.prisma             # Full database schema
+```
+
+## 9 Core Modules
+1. **Performance Engine** — Weighted scoring, bonus 25%-225%, editable parameters, ranking
+2. **Task Management** — Reviewer assigns tasks, deadlines, backlog tracking, speed scoring
+3. **Leave Management** — Advance apply (1 week), emergency penalty, proof upload
+4. **Attendance & Geo-fencing** — GPS fence, WFH (5km rule), geo-exit tracking, self-approval
+5. **Salary & Payroll** — Calculation, offer letter generation, employee vs system slip comparison
+6. **Notifications** — Email + WhatsApp (later), condition-based reminders
+7. **Anomaly Reporting** — Daily summary + detail email to admin-designated users
+8. **Multi-Company** — Tenant-based for 3-4 companies, companyId on all tables
+9. **RBAC** — Super admin all rights, granular per-feature per-user permissions
+
+## Coding Conventions
+- Use `"use client"` only when component needs interactivity (hooks, event handlers)
+- Server Components by default for data fetching
+- All API routes return `{ success: boolean, data?: T, error?: string }`
+- Use Zod for input validation on all API routes
+- All database queries filter by `companyId` for tenant isolation
+- Use `cn()` utility from `lib/utils.ts` for conditional classNames
+- Prefer named exports over default exports (except pages)
+- Use TypeScript strict mode — no `any` types
+- Error boundaries on all page-level components
+
+## Performance Scoring
+- Bonus range: 25% (minimum) to 225% (exceptional, near-impossible)
+- 175-225% tier is exponentially hard to reach
+- Parameters are stored in DB (editable by admin): name, weight, formula, isActive
+- Score = Σ(parameter.weight × parameter.normalizedScore)
+- New parameters can be added without code changes
+
+## Multi-Tenancy Pattern
+- Every data table has `companyId` foreign key
+- Middleware extracts user's companyId from session
+- All queries MUST include `where: { companyId }` filter
+- Super admin can switch between companies
+
+## Completed Phases
+- **Phase 1**: Foundation — Project scaffold, Prisma schema (20 models), Auth, RBAC, Multi-company, Dashboard shell
+- **Phase 2**: Attendance & Geo-fencing — Check-in/out with GPS, WFH detection, geo-exit tracking, location pings, geo-fence CRUD admin, attendance history with pagination
+- **Phase 3**: Leave Management — Apply leave with advance/emergency detection, scoring impact (-1.0/-2.0 for short notice, 0 with proof), proof upload, approval/rejection workflow, leave balance tracking, filter by status
+
+- **Phase 4**: Task Management — Assign tasks to staff, Kanban summary cards, task list with status/priority filters, speed score (auto-calculated on completion), accuracy review by reviewer, staff agree/dispute, backlog tracking, special permission for >1 week overdue
+
+- **Phase 5**: Performance Engine — Scoring engine (lib/performance.ts) calculates 9 parameters from live data, bonus mapping 25-225% with exponential curve, rankings page with expandable detail, tier visual bar, admin parameter CRUD with weight editing, on-demand bulk calculation
+
+- **Phase 6**: Salary & Payroll — Salary structure CRUD, system-generated salary slips with bonus integration, employee self-calculation comparison with discrepancy detection, offer letter templates with placeholder rendering, slip finalization workflow
+
+- **Phase 7**: Notifications & Anomaly Reporting — Pluggable notification service (Email+WhatsApp), anomaly detection engine (6 checks: simultaneous absence, geo exits, overdue tasks, emergency leaves, low attendance, backlog), daily report generation, anomaly rules admin with recipient management, reports page with detection trigger
+
+- **Phase 8**: Polish & Admin — User management CRUD with role-based default permissions, Company management (SUPER_ADMIN), Rights management with per-feature permission matrix, error boundary, 404 page, loading states
+
+## ALL 8 PHASES COMPLETE. System fully built with 0 TypeScript errors.

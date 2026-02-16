@@ -1,0 +1,573 @@
+// P&AMS — Performance & Attendance Management System
+// Full database schema for multi-tenant HR performance tracking
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  REVIEWER
+  STAFF
+}
+
+enum LeaveType {
+  SICK
+  PERSONAL
+  EMERGENCY
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ProofStatus {
+  NOT_REQUIRED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum TaskStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+enum LocationType {
+  OFFICE
+  CLIENT_SITE
+  WORK_FROM_HOME
+  UNKNOWN
+}
+
+enum AttendanceStatus {
+  AUTO_APPROVED
+  PENDING_REVIEW
+  APPROVED
+  FLAGGED
+  REJECTED
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  BOTH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum SlipStatus {
+  DRAFT
+  GENERATED
+  COMPARED
+  FINALIZED
+}
+
+// ============================================================
+// MULTI-TENANT: COMPANY
+// ============================================================
+
+model Company {
+  id             String   @id @default(cuid())
+  name           String
+  code           String   @unique // Short code like "ABC", "XYZ"
+  address        String?
+  phone          String?
+  email          String?
+  logo           String?  // URL to company logo
+  isActive       Boolean  @default(true)
+  settings       Json     @default("{}") // Company-specific settings
+  // Work timing settings (set by admin)
+  inTime         String   @default("09:30") // HH:mm format, e.g. "09:30"
+  outTime        String   @default("18:30") // HH:mm format, e.g. "18:30"
+  graceMinutes   Int      @default(15)      // Grace period in minutes (e.g. 15 = up to 9:45 is OK)
+  lateThreshold  Int      @default(3)       // Number of late arrivals before half-day kicks in
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  users              User[]
+  geoFences          GeoFence[]
+  leavePolicies      LeavePolicy[]
+  perfParameters     PerfParameter[]
+  anomalyRules       AnomalyRule[]
+  anomalyReports     AnomalyReport[]
+  salarySlips        SalarySlip[]
+  offerLetterTemplates OfferLetterTemplate[]
+
+  @@map("companies")
+}
+
+// ============================================================
+// USER & RBAC
+// ============================================================
+
+model User {
+  id             String   @id @default(cuid())
+  companyId      String
+  employeeCode   String   // Employee ID within company
+  email          String   @unique
+  phone          String?
+  password       String   // bcrypt hashed
+  firstName      String
+  lastName       String
+  role           UserRole @default(STAFF)
+  designation    String?
+  department     String?
+  dateOfJoining  DateTime?
+  isActive       Boolean  @default(true)
+  profilePhoto   String?  // URL
+  workMode       String   @default("office") // office | client | hybrid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  company             Company              @relation(fields: [companyId], references: [id])
+  featurePermissions  FeaturePermission[]
+  attendanceRecords   Attendance[]
+  geoExitLogs         GeoExitLog[]
+  leaveRequests       LeaveRequest[]
+  leavesApproved      LeaveRequest[]       @relation("LeaveApprover")
+  tasksAssigned       Task[]               @relation("TaskAssignee")
+  tasksCreated        Task[]               @relation("TaskCreator")
+  taskReviews         TaskReview[]
+  perfScores          PerfScore[]
+  bonusCalculations   BonusCalculation[]
+  salaryStructure     SalaryStructure?
+  salarySlips         SalarySlip[]
+  offerLetters        OfferLetter[]
+  notifications       Notification[]
+  anomalyRecipients   AnomalyRule[]        @relation("AnomalyRecipients")
+
+  @@unique([companyId, employeeCode])
+  @@index([companyId])
+  @@map("users")
+}
+
+model FeaturePermission {
+  id        String   @id @default(cuid())
+  userId    String
+  feature   String   // e.g., "attendance", "leaves", "tasks", "performance", "salary", "reports", "admin"
+  canView   Boolean  @default(false)
+  canCreate Boolean  @default(false)
+  canEdit   Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  canApprove Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feature])
+  @@map("feature_permissions")
+}
+
+// ============================================================
+// ATTENDANCE & GEO-FENCING
+// ============================================================
+
+model GeoFence {
+  id        String   @id @default(cuid())
+  companyId String
+  label     String   // "Main Office", "Client Site - ABC Corp"
+  latitude  Float
+  longitude Float
+  radiusM   Int      // Radius in meters
+  type      String   @default("office") // office | client_site
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company    Company      @relation(fields: [companyId], references: [id])
+  attendance Attendance[]
+
+  @@index([companyId])
+  @@map("geo_fences")
+}
+
+model Attendance {
+  id             String           @id @default(cuid())
+  userId         String
+  date           DateTime         @db.Date
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  checkInLat     Float?
+  checkInLng     Float?
+  checkOutLat    Float?
+  checkOutLng    Float?
+  locationType   LocationType     @default(UNKNOWN)
+  geoFenceId     String?          // Which geo-fence they checked in at
+  geoExitCount   Int              @default(0) // Times left geo-fence during day
+  status         AttendanceStatus @default(AUTO_APPROVED)
+  totalHours     Float?           // Calculated hours worked
+  overtimeHours  Float?           // Hours beyond standard (e.g., 8hrs)
+  notes          String?
+  isWfh          Boolean          @default(false)
+  // Late arrival tracking
+  isLate         Boolean          @default(false) // True if checked in after inTime + graceMinutes
+  lateByMinutes  Int              @default(0)     // How many minutes late (0 if on time)
+  isHalfDay      Boolean          @default(false) // True if this is the 4th+ late arrival in the month
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id])
+  geoFence    GeoFence?    @relation(fields: [geoFenceId], references: [id])
+  geoExitLogs GeoExitLog[]
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("attendance")
+}
+
+model GeoExitLog {
+  id                String   @id @default(cuid())
+  attendanceId      String
+  userId            String
+  exitTime          DateTime
+  returnTime        DateTime?
+  exitLat           Float
+  exitLng           Float
+  distanceFromFence Float    // Distance in meters from nearest fence boundary
+  createdAt         DateTime @default(now())
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@index([attendanceId])
+  @@map("geo_exit_logs")
+}
+
+// ============================================================
+// LEAVE MANAGEMENT
+// ============================================================
+
+model LeavePolicy {
+  id                 String   @id @default(cuid())
+  companyId          String
+  leaveType          LeaveType
+  maxDaysPerYear     Int
+  advanceNoticeDays  Int      @default(7)  // Must apply at least 7 days in advance
+  emergencyPenaltyWeight Float @default(1.0) // Multiplier for negative scoring
+  longEmergencyDays  Int      @default(2)  // Emergency > this = higher penalty
+  longEmergencyPenaltyWeight Float @default(2.0) // Higher penalty for long emergency
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, leaveType])
+  @@map("leave_policies")
+}
+
+model LeaveRequest {
+  id            String      @id @default(cuid())
+  userId        String
+  leaveType     LeaveType
+  startDate     DateTime    @db.Date
+  endDate       DateTime    @db.Date
+  reason        String?
+  appliedOn     DateTime    @default(now())
+  isAdvance     Boolean     @default(false) // Was it applied >= advanceNoticeDays before?
+  isEmergency   Boolean     @default(false)
+  durationDays  Int         // Number of working days
+  proofUrl      String?     // Uploaded proof (doctor's note, etc.)
+  proofStatus   ProofStatus @default(NOT_REQUIRED)
+  status        LeaveStatus @default(PENDING)
+  approvedById  String?
+  approvalNotes String?
+  scoringImpact Float       @default(0) // Calculated impact on performance score
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user       User  @relation(fields: [userId], references: [id])
+  approvedBy User? @relation("LeaveApprover", fields: [approvedById], references: [id])
+
+  @@index([userId, startDate])
+  @@map("leave_requests")
+}
+
+// ============================================================
+// TASK MANAGEMENT
+// ============================================================
+
+model Task {
+  id                String     @id @default(cuid())
+  assignedToId      String
+  assignedById      String     // Reviewer who assigned the task
+  title             String
+  description       String?
+  deadline          DateTime
+  completedAt       DateTime?
+  status            TaskStatus @default(ASSIGNED)
+  priority          String     @default("normal") // low | normal | high | urgent
+  isOverdue         Boolean    @default(false)
+  specialPermission Boolean    @default(false) // If extends beyond 1 week
+  specialPermNote   String?    // Reason for extension
+  backlogWeeks      Int        @default(0) // How many weeks overdue
+  speedScore        Float?     // Calculated: how fast relative to deadline
+  isWfhTask         Boolean    @default(false) // Completed while WFH
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  assignedTo User         @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  assignedBy User         @relation("TaskCreator", fields: [assignedById], references: [id])
+  reviews    TaskReview[]
+
+  @@index([assignedToId, status])
+  @@index([assignedById])
+  @@map("tasks")
+}
+
+model TaskReview {
+  id             String   @id @default(cuid())
+  taskId         String
+  reviewerId     String
+  accuracyScore  Float    // 0-100, scored by reviewer
+  staffAgreed    Boolean  @default(false) // Staff confirms/disputes the score
+  staffComments  String?
+  reviewerNotes  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  task     Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  reviewer User @relation(fields: [reviewerId], references: [id])
+
+  @@unique([taskId]) // One review per task
+  @@map("task_reviews")
+}
+
+// ============================================================
+// PERFORMANCE ENGINE
+// ============================================================
+
+model PerfParameter {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String   // e.g., "Task Speed", "Attendance Consistency"
+  description String?
+  weight      Float    // 0-100, percentage weight (all active should sum to 100)
+  formula     String   @default("HIGHER_IS_BETTER") // HIGHER_IS_BETTER | LOWER_IS_BETTER | CUSTOM
+  dataSource  String?  // Which module feeds this: "attendance", "tasks", "leaves", etc.
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company     @relation(fields: [companyId], references: [id])
+  scores  PerfScore[]
+
+  @@index([companyId, isActive])
+  @@map("perf_parameters")
+}
+
+model PerfScore {
+  id            String   @id @default(cuid())
+  userId        String
+  parameterId   String
+  period        String   // Format: "2026-01" (year-month)
+  rawValue      Float    // The raw metric value
+  normalizedScore Float  // 0-100 normalized score
+  weightedScore Float    // normalizedScore * parameter.weight / 100
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id])
+  parameter PerfParameter @relation(fields: [parameterId], references: [id])
+
+  @@unique([userId, parameterId, period])
+  @@index([userId, period])
+  @@map("perf_scores")
+}
+
+model BonusCalculation {
+  id              String   @id @default(cuid())
+  userId          String
+  period          String   // Format: "2026-Q1" or "2026-01"
+  totalScore      Float    // 0-100 aggregate score
+  bonusPercentage Float    // 25-225
+  tier            String   // "Minimum", "Below Average", "Average", etc.
+  breakdown       Json     // Detailed score per parameter
+  isFinalized     Boolean  @default(false)
+  finalizedAt     DateTime?
+  finalizedBy     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, period])
+  @@index([userId])
+  @@map("bonus_calculations")
+}
+
+// ============================================================
+// SALARY & PAYROLL
+// ============================================================
+
+model SalaryStructure {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  basic        Float
+  hra          Float    @default(0)
+  da           Float    @default(0)
+  ta           Float    @default(0)
+  specialAllow Float    @default(0)
+  pf           Float    @default(0)
+  esi          Float    @default(0)
+  tax          Float    @default(0)
+  otherDeduct  Float    @default(0)
+  netSalary    Float    // Calculated
+  currency     String   @default("INR")
+  effectiveFrom DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("salary_structures")
+}
+
+model SalarySlip {
+  id                  String     @id @default(cuid())
+  userId              String
+  companyId           String
+  month               String     // Format: "2026-01"
+  systemGross         Float?
+  systemDeductions    Float?
+  systemNet           Float?
+  systemBreakdown     Json?      // Detailed system calculation
+  employeeGross       Float?
+  employeeDeductions  Float?
+  employeeNet         Float?
+  employeeBreakdown   Json?      // Employee's own calculation
+  discrepancy         Float?     // Difference between system and employee
+  discrepancyNotes    String?
+  bonusPercentage     Float?     // From performance calculation
+  bonusAmount         Float?
+  status              SlipStatus @default(DRAFT)
+  generatedAt         DateTime?
+  pdfUrl              String?    // Generated PDF URL
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([userId, month])
+  @@index([companyId, month])
+  @@map("salary_slips")
+}
+
+model OfferLetterTemplate {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  content   String   // HTML/template content
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  offerLetters OfferLetter[]
+
+  @@map("offer_letter_templates")
+}
+
+model OfferLetter {
+  id           String   @id @default(cuid())
+  userId       String
+  templateId   String
+  content      String   // Final rendered content
+  pdfUrl       String?  // Generated PDF
+  generatedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User                @relation(fields: [userId], references: [id])
+  template OfferLetterTemplate @relation(fields: [templateId], references: [id])
+
+  @@map("offer_letters")
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String
+  channel   NotificationChannel
+  type      String             // "task_assigned", "leave_reminder", "anomaly_alert", etc.
+  subject   String?
+  message   String
+  metadata  Json?              // Additional data (taskId, leaveId, etc.)
+  status    NotificationStatus @default(PENDING)
+  sentAt    DateTime?
+  errorMsg  String?
+  createdAt DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// ANOMALY REPORTING
+// ============================================================
+
+model AnomalyRule {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String   // "Simultaneous Absence", "Backlog Alert", etc.
+  condition   String   // Description or code for the anomaly condition
+  severity    String   @default("medium") // low | medium | high | critical
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company    Company @relation(fields: [companyId], references: [id])
+  recipients User[]  @relation("AnomalyRecipients")
+
+  @@index([companyId])
+  @@map("anomaly_rules")
+}
+
+model AnomalyReport {
+  id        String   @id @default(cuid())
+  companyId String
+  date      DateTime @db.Date
+  summary   String   // Brief summary of anomalies
+  details   Json     // Detailed anomaly data
+  sentTo    String[] // Email addresses it was sent to
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, date])
+  @@index([companyId, date])
+  @@map("anomaly_reports")
+}

@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# P&AMS — Performance & Attendance Management System
+
+Multi-tenant performance and attendance management system for a group of companies. Tracks employee performance across weighted parameters, manages attendance with strict geo-fencing, handles leave workflows, task assignment, salary/payroll, and generates anomaly reports.
+
+## Tech Stack
+
+- **Framework**: Next.js 14+ (App Router, Server Components)
+- **Language**: TypeScript (strict)
+- **UI**: Tailwind CSS + shadcn/ui + Framer Motion
+- **Database**: PostgreSQL + Prisma ORM
+- **Auth**: NextAuth.js v5
+- **Client State**: TanStack Query
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 18+
+- PostgreSQL database (Railway, Neon, or local)
+
+### Setup
+
+1. **Clone and install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your DATABASE_URL and AUTH_SECRET
+   ```
+
+3. **Generate Prisma client and push schema:**
+   ```bash
+   npm run db:generate
+   npm run db:push
+   ```
+
+4. **Seed the database with sample data:**
+   ```bash
+   npm run db:seed
+   ```
+
+5. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+
+6. **Open http://localhost:3000**
+
+### Test Credentials
+
+| Role | Email | Password |
+|------|-------|----------|
+| Super Admin | superadmin@pams.com | Admin@123 |
+| Reviewer | reviewer@companyone.com | Reviewer@123 |
+| Staff | staff1@companyone.com | Staff@123 |
+
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── (auth)/             # Login/register (unauthenticated)
+│   ├── (dashboard)/        # Main app (authenticated)
+│   │   ├── attendance/     # Attendance & geo-fencing
+│   │   ├── leaves/         # Leave management
+│   │   ├── tasks/          # Task management
+│   │   ├── performance/    # Performance scores & bonuses
+│   │   ├── salary/         # Salary & payroll
+│   │   ├── reports/        # Reports & analytics
+│   │   └── admin/          # Admin panels
+│   └── api/                # API routes
+├── components/             # React components
+│   ├── layout/             # Sidebar, topbar, shell
+│   └── ui/                 # shadcn/ui components
+├── lib/                    # Utilities & core logic
+│   ├── auth.ts             # NextAuth config
+│   ├── db.ts               # Prisma client
+│   ├── geo.ts              # Geo-fencing (Haversine)
+│   └── constants.ts        # App constants & config
+├── types/                  # TypeScript types
+└── middleware.ts            # Auth middleware
+prisma/
+├── schema.prisma           # Database schema
+└── seed.ts                 # Seed script
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Key Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Performance Engine**: Weighted scoring with editable parameters, bonus 25%-225%
+- **Attendance**: Strict GPS geo-fencing with WFH detection (5km rule)
+- **Leave Management**: Advance notice requirements, emergency leave penalties, proof upload
+- **Task Management**: Reviewer-assigned tasks with speed/accuracy scoring
+- **Multi-Company**: Tenant-based isolation for 3-4 companies
+- **RBAC**: Granular per-feature permissions per user
+- **Anomaly Detection**: Daily automated anomaly reports via email
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Available Scripts
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run db:generate` | Generate Prisma client |
+| `npm run db:push` | Push schema to database |
+| `npm run db:migrate` | Run database migrations |
+| `npm run db:seed` | Seed database with sample data |
+| `npm run db:studio` | Open Prisma Studio |
