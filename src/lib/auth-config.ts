@@ -6,48 +6,6 @@ import { prisma } from "./db";
 import type { FeatureKey } from "./constants";
 import type { Permission } from "@/types";
 
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      name: string;
-      firstName: string;
-      lastName: string;
-      role: string;
-      companyId: string;
-      companyName: string;
-      employeeCode: string;
-      profilePhoto?: string | null;
-      permissions: Record<FeatureKey, Permission>;
-    };
-  }
-
-  interface User {
-    id?: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    companyId: string;
-    companyName: string;
-    employeeCode: string;
-    profilePhoto?: string | null;
-    permissions: Record<FeatureKey, Permission>;
-  }
-}
-
-export interface ExtendedJWT extends JWT {
-  id: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  companyId: string;
-  companyName: string;
-  employeeCode: string;
-  profilePhoto?: string | null;
-  permissions: Record<FeatureKey, Permission>;
-}
-
 export const authConfig: NextAuthConfig = {
   providers: [
     Credentials({
@@ -82,7 +40,6 @@ export const authConfig: NextAuthConfig = {
           return null;
         }
 
-        // Build permissions map
         const permissions: Record<string, Permission> = {};
         for (const fp of user.featurePermissions) {
           permissions[fp.feature] = {
@@ -111,47 +68,33 @@ export const authConfig: NextAuthConfig = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    jwt({ token, user }) {
       if (user) {
-        const t = token as ExtendedJWT;
-        t.id = user.id!;
-        t.firstName = user.firstName;
-        t.lastName = user.lastName;
-        t.role = user.role;
-        t.companyId = user.companyId;
-        t.companyName = user.companyName;
-        t.employeeCode = user.employeeCode;
-        t.profilePhoto = user.profilePhoto;
-        t.permissions = user.permissions;
+        token.id = user.id!;
+        token.firstName = (user as Record<string, unknown>).firstName as string;
+        token.lastName = (user as Record<string, unknown>).lastName as string;
+        token.role = (user as Record<string, unknown>).role as string;
+        token.companyId = (user as Record<string, unknown>).companyId as string;
+        token.companyName = (user as Record<string, unknown>).companyName as string;
+        token.employeeCode = (user as Record<string, unknown>).employeeCode as string;
+        token.profilePhoto = (user as Record<string, unknown>).profilePhoto as string | null;
+        token.permissions = (user as Record<string, unknown>).permissions as Record<FeatureKey, Permission>;
       }
       return token;
     },
-    async session({ session, token }) {
-      const t = token as ExtendedJWT;
-      session.user.id = t.id;
-      session.user.firstName = t.firstName;
-      session.user.lastName = t.lastName;
-      session.user.role = t.role;
-      session.user.companyId = t.companyId;
-      session.user.companyName = t.companyName;
-      session.user.employeeCode = t.employeeCode;
-      session.user.profilePhoto = t.profilePhoto;
-      session.user.permissions = t.permissions;
-      return session;
-    },
-    authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const isOnDashboard = !nextUrl.pathname.startsWith("/login") &&
-        !nextUrl.pathname.startsWith("/register") &&
-        !nextUrl.pathname.startsWith("/api/auth");
-
-      if (isOnDashboard) {
-        if (isLoggedIn) return true;
-        return false; // Redirect to login
-      } else if (isLoggedIn) {
-        return Response.redirect(new URL("/", nextUrl));
+    session({ session, token }) {
+      if (token && session.user) {
+        (session.user as Record<string, unknown>).id = token.id as string;
+        (session.user as Record<string, unknown>).firstName = token.firstName as string;
+        (session.user as Record<string, unknown>).lastName = token.lastName as string;
+        (session.user as Record<string, unknown>).role = token.role as string;
+        (session.user as Record<string, unknown>).companyId = token.companyId as string;
+        (session.user as Record<string, unknown>).companyName = token.companyName as string;
+        (session.user as Record<string, unknown>).employeeCode = token.employeeCode as string;
+        (session.user as Record<string, unknown>).profilePhoto = token.profilePhoto as string | null;
+        (session.user as Record<string, unknown>).permissions = token.permissions;
       }
-      return true;
+      return session;
     },
   },
   pages: {
@@ -160,4 +103,5 @@ export const authConfig: NextAuthConfig = {
   session: {
     strategy: "jwt",
   },
+  trustHost: true,
 };
