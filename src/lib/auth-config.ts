@@ -1,5 +1,4 @@
 import type { NextAuthConfig } from "next-auth";
-import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
@@ -15,9 +14,7 @@ export const authConfig: NextAuthConfig = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+        if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
@@ -27,18 +24,13 @@ export const authConfig: NextAuthConfig = {
           },
         });
 
-        if (!user || !user.isActive) {
-          return null;
-        }
+        if (!user || !user.isActive) return null;
 
         const isPasswordValid = await bcrypt.compare(
           credentials.password as string,
           user.password
         );
-
-        if (!isPasswordValid) {
-          return null;
-        }
+        if (!isPasswordValid) return null;
 
         const permissions: Record<string, Permission> = {};
         for (const fp of user.featurePermissions) {
@@ -70,29 +62,30 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        token.id = user.id!;
-        token.firstName = (user as Record<string, unknown>).firstName as string;
-        token.lastName = (user as Record<string, unknown>).lastName as string;
-        token.role = (user as Record<string, unknown>).role as string;
-        token.companyId = (user as Record<string, unknown>).companyId as string;
-        token.companyName = (user as Record<string, unknown>).companyName as string;
-        token.employeeCode = (user as Record<string, unknown>).employeeCode as string;
-        token.profilePhoto = (user as Record<string, unknown>).profilePhoto as string | null;
-        token.permissions = (user as Record<string, unknown>).permissions as Record<FeatureKey, Permission>;
+        token.id = user.id;
+        token.firstName = user.firstName;
+        token.lastName = user.lastName;
+        token.role = user.role;
+        token.companyId = user.companyId;
+        token.companyName = user.companyName;
+        token.employeeCode = user.employeeCode;
+        token.profilePhoto = user.profilePhoto;
+        token.permissions = user.permissions;
       }
       return token;
     },
     session({ session, token }) {
-      if (token && session.user) {
-        (session.user as Record<string, unknown>).id = token.id as string;
-        (session.user as Record<string, unknown>).firstName = token.firstName as string;
-        (session.user as Record<string, unknown>).lastName = token.lastName as string;
-        (session.user as Record<string, unknown>).role = token.role as string;
-        (session.user as Record<string, unknown>).companyId = token.companyId as string;
-        (session.user as Record<string, unknown>).companyName = token.companyName as string;
-        (session.user as Record<string, unknown>).employeeCode = token.employeeCode as string;
-        (session.user as Record<string, unknown>).profilePhoto = token.profilePhoto as string | null;
-        (session.user as Record<string, unknown>).permissions = token.permissions;
+      if (token) {
+        const t = token as Record<string, unknown>;
+        session.user.id = t.id as string;
+        session.user.firstName = t.firstName as string;
+        session.user.lastName = t.lastName as string;
+        session.user.role = t.role as string;
+        session.user.companyId = t.companyId as string;
+        session.user.companyName = t.companyName as string;
+        session.user.employeeCode = t.employeeCode as string;
+        session.user.profilePhoto = t.profilePhoto as string | null;
+        session.user.permissions = t.permissions as typeof session.user.permissions;
       }
       return session;
     },
