@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Users,
   MapPin,
@@ -10,7 +11,27 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
+
+interface DashboardStats {
+  stats: {
+    totalStaff: number;
+    activeStaff: number;
+    presentToday: number;
+    attendancePercent: number;
+    activeTasks: number;
+    overdueTasks: number;
+    tasksCompletedThisWeek: number;
+    onLeaveToday: number;
+    plannedLeaves: number;
+    emergencyLeaves: number;
+    overtimeHours: number;
+    anomalyCount: number;
+  };
+  recentActivity: { action: string; detail: string; time: string; type: string; user?: string }[];
+  topPerformers: { name: string; score: number; tier: string }[];
+}
 
 function StatCard({
   title,
@@ -18,12 +39,14 @@ function StatCard({
   subtitle,
   icon: Icon,
   color,
+  loading,
 }: {
   title: string;
   value: string | number;
   subtitle?: string;
   icon: React.ElementType;
   color: string;
+  loading?: boolean;
 }) {
   const colorClasses: Record<string, string> = {
     blue: "from-blue-500 to-blue-600 shadow-blue-500/25",
@@ -41,9 +64,13 @@ function StatCard({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-            {value}
-          </p>
+          {loading ? (
+            <div className="mt-2 h-9 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+          ) : (
+            <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+              {value}
+            </p>
+          )}
           {subtitle && (
             <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
           )}
@@ -58,9 +85,32 @@ function StatCard({
   );
 }
 
+function tierColor(tier: string): string {
+  if (tier === "Excellent") return "text-cyan-600";
+  if (tier === "Very Good") return "text-green-600";
+  if (tier === "Good") return "text-lime-600";
+  if (tier === "Average") return "text-yellow-600";
+  return "text-gray-500";
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const user = session?.user;
+
+  const { data, isLoading, error } = useQuery<DashboardStats>({
+    queryKey: ["dashboard", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/stats");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data;
+    },
+    refetchInterval: 60000, // refresh every 60s
+  });
+
+  const s = data?.stats;
+  const activity = data?.recentActivity ?? [];
+  const performers = data?.topPerformers ?? [];
 
   return (
     <div className="space-y-6">
@@ -74,35 +124,45 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+          Failed to load dashboard data: {error.message}
+        </div>
+      )}
+
       {/* Stats grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Staff"
-          value={50}
-          subtitle="Across all companies"
+          value={s?.totalStaff ?? 0}
+          subtitle={`${s?.activeStaff ?? 0} active`}
           icon={Users}
           color="blue"
+          loading={isLoading}
         />
         <StatCard
           title="Present Today"
-          value={42}
-          subtitle="84% attendance"
+          value={s?.presentToday ?? 0}
+          subtitle={`${s?.attendancePercent ?? 0}% attendance`}
           icon={MapPin}
           color="green"
+          loading={isLoading}
         />
         <StatCard
           title="Active Tasks"
-          value={128}
-          subtitle="23 overdue"
+          value={s?.activeTasks ?? 0}
+          subtitle={`${s?.overdueTasks ?? 0} overdue`}
           icon={ListTodo}
           color="purple"
+          loading={isLoading}
         />
         <StatCard
-          title="Avg Performance"
-          value="72%"
-          subtitle="Good tier"
-          icon={TrendingUp}
-          color="orange"
+          title="Tasks Completed"
+          value={s?.tasksCompletedThisWeek ?? 0}
+          subtitle="This week"
+          icon={CheckCircle2}
+          color="indigo"
+          loading={isLoading}
         />
       </div>
 
@@ -110,31 +170,35 @@ export default function DashboardPage() {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="On Leave"
-          value={5}
-          subtitle="3 planned, 2 emergency"
+          value={s?.onLeaveToday ?? 0}
+          subtitle={`${s?.plannedLeaves ?? 0} planned, ${s?.emergencyLeaves ?? 0} emergency`}
           icon={CalendarOff}
           color="red"
+          loading={isLoading}
         />
         <StatCard
           title="Overtime Hours"
-          value="156"
+          value={s?.overtimeHours ?? 0}
           subtitle="This month total"
           icon={Clock}
           color="cyan"
+          loading={isLoading}
         />
         <StatCard
           title="Anomalies"
-          value={7}
-          subtitle="Needs attention"
+          value={s?.anomalyCount ?? 0}
+          subtitle="This month"
           icon={AlertTriangle}
           color="pink"
+          loading={isLoading}
         />
         <StatCard
-          title="Tasks Completed"
-          value={89}
-          subtitle="This week"
-          icon={CheckCircle2}
-          color="indigo"
+          title="Avg Performance"
+          value={performers.length > 0 ? `${Math.round(performers.reduce((a, p) => a + p.score, 0) / performers.length)}%` : "—"}
+          subtitle={performers.length > 0 ? "Based on scores" : "No data yet"}
+          icon={TrendingUp}
+          color="orange"
+          loading={isLoading}
         />
       </div>
 
@@ -146,32 +210,34 @@ export default function DashboardPage() {
             Recent Activity
           </h3>
           <div className="space-y-4">
-            {[
-              { action: "Task completed", detail: "Website redesign - Phase 2", time: "2 min ago", type: "success" },
-              { action: "Leave approved", detail: "Personal leave - Mar 5-6", time: "15 min ago", type: "info" },
-              { action: "Anomaly detected", detail: "3 staff absent simultaneously", time: "1 hr ago", type: "warning" },
-              { action: "Check-in", detail: "Office - Main Branch", time: "9:05 AM", type: "success" },
-              { action: "New task assigned", detail: "Client report preparation", time: "Yesterday", type: "info" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div
-                  className={`mt-1 h-2 w-2 rounded-full ${
-                    item.type === "success"
-                      ? "bg-green-500"
-                      : item.type === "warning"
-                        ? "bg-amber-500"
-                        : "bg-blue-500"
-                  }`}
-                />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {item.action}
-                  </p>
-                  <p className="text-sm text-gray-500">{item.detail}</p>
-                </div>
-                <span className="text-xs text-gray-400">{item.time}</span>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
-            ))}
+            ) : activity.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">No recent activity</p>
+            ) : (
+              activity.map((item, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div
+                    className={`mt-1 h-2 w-2 rounded-full ${
+                      item.type === "success"
+                        ? "bg-green-500"
+                        : item.type === "warning"
+                          ? "bg-amber-500"
+                          : "bg-blue-500"
+                    }`}
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {item.action}
+                    </p>
+                    <p className="text-sm text-gray-500">{item.detail}</p>
+                  </div>
+                  <span className="text-xs text-gray-400">{item.time}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -181,40 +247,42 @@ export default function DashboardPage() {
             Top Performers
           </h3>
           <div className="space-y-3">
-            {[
-              { name: "Rahul Sharma", score: 92, tier: "Excellent", color: "text-cyan-600" },
-              { name: "Priya Patel", score: 88, tier: "Excellent", color: "text-cyan-600" },
-              { name: "Amit Kumar", score: 85, tier: "Very Good", color: "text-green-600" },
-              { name: "Sneha Reddy", score: 81, tier: "Very Good", color: "text-green-600" },
-              { name: "Vikram Singh", score: 78, tier: "Good", color: "text-lime-600" },
-            ].map((person, i) => (
-              <div key={i} className="flex items-center gap-4 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-sm font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                  {i + 1}
-                </span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {person.name}
-                  </p>
-                  <p className={`text-xs font-medium ${person.color}`}>
-                    {person.tier}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-gray-900 dark:text-white">
-                    {person.score}
-                  </p>
-                  <p className="text-xs text-gray-500">score</p>
-                </div>
-                {/* Score bar */}
-                <div className="h-2 w-20 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                    style={{ width: `${person.score}%` }}
-                  />
-                </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
-            ))}
+            ) : performers.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">No performance data yet</p>
+            ) : (
+              performers.map((person, i) => (
+                <div key={i} className="flex items-center gap-4 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-sm font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                    {i + 1}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {person.name}
+                    </p>
+                    <p className={`text-xs font-medium ${tierColor(person.tier)}`}>
+                      {person.tier}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">
+                      {Math.round(person.score)}
+                    </p>
+                    <p className="text-xs text-gray-500">score</p>
+                  </div>
+                  {/* Score bar */}
+                  <div className="h-2 w-20 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                      style={{ width: `${Math.min(person.score, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
