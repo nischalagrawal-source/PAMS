@@ -32,15 +32,19 @@ export const authConfig: NextAuthConfig = {
         );
         if (!isPasswordValid) return null;
 
+        // SUPER_ADMIN and ADMIN bypass all permission checks,
+        // so skip storing permissions to keep JWT under 4KB cookie limit
         const permissions: Record<string, Permission> = {};
-        for (const fp of user.featurePermissions) {
-          permissions[fp.feature] = {
-            canView: fp.canView,
-            canCreate: fp.canCreate,
-            canEdit: fp.canEdit,
-            canDelete: fp.canDelete,
-            canApprove: fp.canApprove,
-          };
+        if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
+          for (const fp of user.featurePermissions) {
+            permissions[fp.feature] = {
+              canView: fp.canView,
+              canCreate: fp.canCreate,
+              canEdit: fp.canEdit,
+              canDelete: fp.canDelete,
+              canApprove: fp.canApprove,
+            };
+          }
         }
 
         return {
