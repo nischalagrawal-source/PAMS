@@ -34,4 +34,5 @@ export const authEdgeConfig: NextAuthConfig = {
   session: {
     strategy: "jwt",
   },
+  trustHost: true,
 };
