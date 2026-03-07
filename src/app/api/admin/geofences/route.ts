@@ -26,11 +26,11 @@ export async function GET() {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_geofences", "canView")) {
+    if (!checkPermission(session, "admin_geofences", "canView")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
     const geofences = await prisma.geoFence.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_geofences", "canCreate")) {
+    if (!checkPermission(session, "admin_geofences", "canCreate")) {
       return errorResponse("Forbidden", 403);
     }
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { label, latitude, longitude, radiusM, type } = parsed.data;
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const geofence = await prisma.geoFence.create({
       data: {

@@ -29,7 +29,7 @@ export async function GET() {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (session!.user.role !== "SUPER_ADMIN") {
+    if (session.user.role !== "SUPER_ADMIN") {
       return errorResponse("Forbidden — SUPER_ADMIN only", 403);
     }
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (session!.user.role !== "SUPER_ADMIN") {
+    if (session.user.role !== "SUPER_ADMIN") {
       return errorResponse("Forbidden — SUPER_ADMIN only", 403);
     }
 

@@ -14,11 +14,11 @@ export async function POST(_req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_anomalies", "canCreate")) {
+    if (!checkPermission(session, "admin_anomalies", "canCreate")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
     const result = await generateDailyReport(companyId);
 
     return successResponse(

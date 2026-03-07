@@ -32,12 +32,12 @@ export async function GET(req: NextRequest) {
       Math.max(1, parseInt(searchParams.get("limit") || "20", 10))
     );
 
-    const companyId = session!.user.companyId;
-    const role = session!.user.role;
+    const companyId = session.user.companyId;
+    const role = session.user.role;
 
     // STAFF can only see their own slips
     if (role === "STAFF") {
-      userId = session!.user.id;
+      userId = session.user.id;
     }
 
     const where: Record<string, unknown> = { companyId };
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    const role = session!.user.role;
+    const role = session.user.role;
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
       return errorResponse("Only admins can generate salary slips", 403);
     }
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { userId, month } = parsed.data;
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     // Verify user belongs to the same company
     const targetUser = await prisma.user.findFirst({

@@ -35,17 +35,17 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     let userId = searchParams.get("userId");
-    const companyId = session!.user.companyId;
-    const role = session!.user.role;
+    const companyId = session.user.companyId;
+    const role = session.user.role;
 
     // STAFF can only view their own salary structure
     if (role === "STAFF") {
-      userId = session!.user.id;
+      userId = session.user.id;
     }
 
     // Default to session user if no userId provided
     if (!userId) {
-      userId = session!.user.id;
+      userId = session.user.id;
     }
 
     // Verify the user belongs to the same company
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    const role = session!.user.role;
+    const role = session.user.role;
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
       return errorResponse("Only admins can create/update salary structures", 403);
     }
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
       effectiveFrom,
     } = parsed.data;
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     // Verify user belongs to the same company
     const targetUser = await prisma.user.findFirst({

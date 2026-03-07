@@ -16,7 +16,7 @@ const createUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   employeeCode: z.string().min(1, "Employee code is required"),
-  role: z.enum(["STAFF", "REVIEWER", "ADMIN"]),
+  role: z.enum(["STAFF", "REVIEWER", "ADMIN", "SUPER_ADMIN"]),
   phone: z.string().optional(),
   designation: z.string().optional(),
   department: z.string().optional(),
@@ -38,11 +38,13 @@ function getDefaultPermissions(role: string) {
   ];
 
   const reviewerPerms = [
-    ...staffPerms,
+    { feature: "dashboard", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "attendance", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "leaves", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: true },
     { feature: "tasks", canView: true, canCreate: true, canEdit: true, canDelete: false, canApprove: true },
     { feature: "performance", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "salary", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
     { feature: "reports", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
-    { feature: "leaves", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: true },
   ];
 
   const allFeatures = [
@@ -61,6 +63,7 @@ function getDefaultPermissions(role: string) {
   }));
 
   switch (role) {
+    case "SUPER_ADMIN":
     case "ADMIN":
       return adminPerms;
     case "REVIEWER":
@@ -80,15 +83,15 @@ export async function GET(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_users", "canView")) {
+    if (!checkPermission(session, "admin_users", "canView")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const isSuperAdmin = session!.user.role === "SUPER_ADMIN";
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
     const queryCompanyId = req.nextUrl.searchParams.get("companyId");
     const companyId = isSuperAdmin && queryCompanyId
       ? queryCompanyId
-      : session!.user.companyId;
+      : session.user.companyId;
 
     const users = await prisma.user.findMany({
       where: { companyId },
@@ -137,7 +140,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_users", "canCreate")) {
+    if (!checkPermission(session, "admin_users", "canCreate")) {
       return errorResponse("Forbidden", 403);
     }
 
@@ -167,10 +170,10 @@ export async function POST(req: NextRequest) {
       companyId: bodyCompanyId,
     } = parsed.data;
 
-    const isSuperAdmin = session!.user.role === "SUPER_ADMIN";
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
     const companyId = isSuperAdmin && bodyCompanyId
       ? bodyCompanyId
-      : session!.user.companyId;
+      : session.user.companyId;
 
     const existingUser = await prisma.user.findUnique({
       where: { email },

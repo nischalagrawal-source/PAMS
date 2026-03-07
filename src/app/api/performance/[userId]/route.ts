@@ -26,11 +26,11 @@ export async function GET(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    const companyId = session!.user.companyId;
-    const role = session!.user.role;
+    const companyId = session.user.companyId;
+    const role = session.user.role;
 
     // STAFF can only see their own performance
-    if (role === "STAFF" && userId !== session!.user.id) {
+    if (role === "STAFF" && userId !== session.user.id) {
       return errorResponse("You can only view your own performance", 403);
     }
 

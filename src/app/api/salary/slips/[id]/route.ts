@@ -37,8 +37,8 @@ export async function GET(
     if (error) return error;
 
     const { id } = await params;
-    const companyId = session!.user.companyId;
-    const role = session!.user.role;
+    const companyId = session.user.companyId;
+    const role = session.user.role;
 
     const slip = await prisma.salarySlip.findFirst({
       where: { id, companyId },
@@ -60,7 +60,7 @@ export async function GET(
     }
 
     // STAFF can only view their own slip
-    if (role === "STAFF" && slip.userId !== session!.user.id) {
+    if (role === "STAFF" && slip.userId !== session.user.id) {
       return errorResponse("You can only view your own salary slips", 403);
     }
 
@@ -82,8 +82,8 @@ export async function PUT(
     if (error) return error;
 
     const { id } = await params;
-    const companyId = session!.user.companyId;
-    const role = session!.user.role;
+    const companyId = session.user.companyId;
+    const role = session.user.role;
 
     // Find existing slip
     const existing = await prisma.salarySlip.findFirst({
@@ -95,7 +95,7 @@ export async function PUT(
     }
 
     // STAFF can only update their own slip (to submit employee calculation)
-    if (role === "STAFF" && existing.userId !== session!.user.id) {
+    if (role === "STAFF" && existing.userId !== session.user.id) {
       return errorResponse("You can only update your own salary slips", 403);
     }
 

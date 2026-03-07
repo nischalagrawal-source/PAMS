@@ -2,16 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { FeatureKey } from "@/lib/constants";
+import type { Session } from "next-auth";
 
 /**
  * Get the authenticated session or return 401
  */
-export async function getSessionOrFail() {
-  const session = await auth();
+type SessionSuccess = { session: Session & { user: Session["user"] }; error: null };
+type SessionFailure = { session: null; error: NextResponse };
+type SessionResult = SessionSuccess | SessionFailure;
+
+export async function getSessionOrFail(): Promise<SessionResult> {
+  const session = await auth() as Session | null;
   if (!session?.user) {
-    return { session: null, error: NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 }) };
+    return { session: null, error: NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 }) } as SessionFailure;
   }
-  return { session, error: null };
+  return { session: session as SessionSuccess["session"], error: null } as SessionSuccess;
 }
 
 /**

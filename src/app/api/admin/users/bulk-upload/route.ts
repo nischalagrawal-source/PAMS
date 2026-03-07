@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_users" as never, "canCreate")) {
+    if (!checkPermission(session, "admin_users", "canCreate")) {
       return errorResponse("No permission to create users", 403);
     }
 
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
     for (const row of validRows) {
       try {
         // Resolve company ID
-        let companyId = session!.user.companyId;
+        let companyId = session.user.companyId;
         if (row.company) {
           const code = row.company.toString().toUpperCase().trim();
           if (!companyMap.has(code)) {

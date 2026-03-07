@@ -72,6 +72,7 @@ export default function AnomalyRulesPage() {
     queryFn: async () => {
       const res = await fetch("/api/users");
       const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to fetch users");
       return json.data as UserOption[];
     },
   });

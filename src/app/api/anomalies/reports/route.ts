@@ -14,11 +14,11 @@ export async function GET(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_anomalies", "canView")) {
+    if (!checkPermission(session, "admin_anomalies", "canView")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
     const { searchParams } = new URL(req.url);
 
     const from = searchParams.get("from");

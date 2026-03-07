@@ -32,11 +32,11 @@ export async function PUT(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_parameters", "canEdit")) {
+    if (!checkPermission(session, "admin_parameters", "canEdit")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const existing = await prisma.perfParameter.findFirst({
       where: { id, companyId },
@@ -82,11 +82,11 @@ export async function DELETE(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_parameters", "canDelete")) {
+    if (!checkPermission(session, "admin_parameters", "canDelete")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const existing = await prisma.perfParameter.findFirst({
       where: { id, companyId },

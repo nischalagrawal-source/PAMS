@@ -13,12 +13,15 @@ import {
 const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
+  email: z.string().email("Invalid email address").optional(),
   phone: z.string().optional(),
+  employeeCode: z.string().min(1).optional(),
   designation: z.string().optional(),
   department: z.string().optional(),
   workMode: z.enum(["office", "client", "hybrid"]).optional(),
+  dateOfJoining: z.string().optional(),
   isActive: z.boolean().optional(),
-  role: z.enum(["STAFF", "REVIEWER", "ADMIN"]).optional(),
+  role: z.enum(["STAFF", "REVIEWER", "ADMIN", "SUPER_ADMIN"]).optional(),
   password: z.string().min(6).optional(),
 });
 
@@ -35,11 +38,13 @@ function getDefaultPermissions(role: string) {
   ];
 
   const reviewerPerms = [
-    ...staffPerms,
+    { feature: "dashboard", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "attendance", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "leaves", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: true },
     { feature: "tasks", canView: true, canCreate: true, canEdit: true, canDelete: false, canApprove: true },
     { feature: "performance", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "salary", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
     { feature: "reports", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
-    { feature: "leaves", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: true },
   ];
 
   const allFeatures = [
@@ -58,6 +63,7 @@ function getDefaultPermissions(role: string) {
   }));
 
   switch (role) {
+    case "SUPER_ADMIN":
     case "ADMIN":
       return adminPerms;
     case "REVIEWER":
@@ -81,12 +87,12 @@ export async function GET(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_users", "canView")) {
+    if (!checkPermission(session, "admin_users", "canView")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
-    const isSuperAdmin = session!.user.role === "SUPER_ADMIN";
+    const companyId = session.user.companyId;
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
 
     const user = await prisma.user.findFirst({
       where: {
@@ -148,12 +154,12 @@ export async function PUT(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_users", "canEdit")) {
+    if (!checkPermission(session, "admin_users", "canEdit")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
-    const isSuperAdmin = session!.user.role === "SUPER_ADMIN";
+    const companyId = session.user.companyId;
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
 
     const existing = await prisma.user.findFirst({
       where: {
@@ -177,9 +183,34 @@ export async function PUT(
       return errorResponse(msg || "Validation failed");
     }
 
-    const { password, role, ...rest } = parsed.data;
+    const { password, role, email, employeeCode, dateOfJoining, ...rest } = parsed.data;
 
     const updateData: Record<string, unknown> = { ...rest };
+
+    // Handle email change with uniqueness check
+    if (email && email !== existing.email) {
+      const emailExists = await prisma.user.findUnique({ where: { email } });
+      if (emailExists) {
+        return errorResponse("A user with this email already exists", 409);
+      }
+      updateData.email = email;
+    }
+
+    // Handle employeeCode change with uniqueness check
+    if (employeeCode && employeeCode !== existing.employeeCode) {
+      const codeExists = await prisma.user.findFirst({
+        where: { companyId: existing.companyId, employeeCode, id: { not: id } },
+      });
+      if (codeExists) {
+        return errorResponse("Employee code already exists in this company", 409);
+      }
+      updateData.employeeCode = employeeCode;
+    }
+
+    // Handle dateOfJoining conversion
+    if (dateOfJoining !== undefined) {
+      updateData.dateOfJoining = dateOfJoining ? new Date(dateOfJoining) : null;
+    }
 
     if (password) {
       updateData.password = await bcrypt.hash(password, 12);
@@ -286,12 +317,12 @@ export async function DELETE(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_users", "canDelete")) {
+    if (!checkPermission(session, "admin_users", "canDelete")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
-    const isSuperAdmin = session!.user.role === "SUPER_ADMIN";
+    const companyId = session.user.companyId;
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
 
     const existing = await prisma.user.findFirst({
       where: {
@@ -304,7 +335,7 @@ export async function DELETE(
       return errorResponse("User not found", 404);
     }
 
-    if (existing.id === session!.user.id) {
+    if (existing.id === session.user.id) {
       return errorResponse("You cannot deactivate your own account", 400);
     }
 

@@ -27,11 +27,11 @@ export async function GET() {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_parameters", "canView")) {
+    if (!checkPermission(session, "admin_parameters", "canView")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const parameters = await prisma.perfParameter.findMany({
       where: { companyId },
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_parameters", "canCreate")) {
+    if (!checkPermission(session, "admin_parameters", "canCreate")) {
       return errorResponse("Forbidden", 403);
     }
 
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     const { name, description, weight, formula, dataSource, sortOrder } =
       parsed.data;
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const parameter = await prisma.perfParameter.create({
       data: {

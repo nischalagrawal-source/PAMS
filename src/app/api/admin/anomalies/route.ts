@@ -25,11 +25,11 @@ export async function GET(_req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_anomalies", "canView")) {
+    if (!checkPermission(session, "admin_anomalies", "canView")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const rules = await prisma.anomalyRule.findMany({
       where: { companyId },
@@ -60,11 +60,11 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_anomalies", "canCreate")) {
+    if (!checkPermission(session, "admin_anomalies", "canCreate")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const body = await parseBody<unknown>(req);
     if (!body) return errorResponse("Invalid request body");

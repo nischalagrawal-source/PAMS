@@ -30,7 +30,7 @@ export async function PUT(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (session!.user.role !== "SUPER_ADMIN") {
+    if (session.user.role !== "SUPER_ADMIN") {
       return errorResponse("Forbidden — SUPER_ADMIN only", 403);
     }
 

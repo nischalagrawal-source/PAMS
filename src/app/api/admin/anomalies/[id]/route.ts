@@ -30,11 +30,11 @@ export async function PUT(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_anomalies", "canEdit")) {
+    if (!checkPermission(session, "admin_anomalies", "canEdit")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const existing = await prisma.anomalyRule.findFirst({
       where: { id, companyId },
@@ -93,11 +93,11 @@ export async function DELETE(
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_anomalies", "canDelete")) {
+    if (!checkPermission(session, "admin_anomalies", "canDelete")) {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const existing = await prisma.anomalyRule.findFirst({
       where: { id, companyId },

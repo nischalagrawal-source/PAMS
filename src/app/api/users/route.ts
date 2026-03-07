@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
     const users = await prisma.user.findMany({
       where: {
-        companyId: session!.user.companyId,
+        companyId: session.user.companyId,
         isActive: true,
         ...(role ? { role: role as never } : {}),
       },

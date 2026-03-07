@@ -27,12 +27,12 @@ export async function GET(req: NextRequest) {
     const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const period = searchParams.get("period") || defaultPeriod;
     const userId = searchParams.get("userId");
-    const companyId = session!.user.companyId;
-    const role = session!.user.role;
+    const companyId = session.user.companyId;
+    const role = session.user.role;
 
     if (userId) {
       // Single user detail — STAFF can only see their own
-      if (role === "STAFF" && userId !== session!.user.id) {
+      if (role === "STAFF" && userId !== session.user.id) {
         return errorResponse("You can only view your own performance", 403);
       }
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    const role = session!.user.role;
+    const role = session.user.role;
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
       return errorResponse("Only admins can trigger score calculation", 403);
     }
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       return errorResponse("Valid period is required (YYYY-MM)");
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const users = await prisma.user.findMany({
       where: { companyId, isActive: true },

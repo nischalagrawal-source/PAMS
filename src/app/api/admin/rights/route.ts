@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_rights", "canView")) {
+    if (!checkPermission(session, "admin_rights", "canView")) {
       return errorResponse("Forbidden", 403);
     }
 
@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
       return errorResponse("userId query parameter is required");
     }
 
-    const companyId = session!.user.companyId;
-    const isSuperAdmin = session!.user.role === "SUPER_ADMIN";
+    const companyId = session.user.companyId;
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
 
     const user = await prisma.user.findFirst({
       where: {
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    if (!checkPermission(session!, "admin_rights", "canEdit")) {
+    if (!checkPermission(session, "admin_rights", "canEdit")) {
       return errorResponse("Forbidden", 403);
     }
 
@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
 
     const { userId, permissions } = parsed.data;
 
-    const companyId = session!.user.companyId;
-    const isSuperAdmin = session!.user.role === "SUPER_ADMIN";
+    const companyId = session.user.companyId;
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
 
     const targetUser = await prisma.user.findFirst({
       where: {

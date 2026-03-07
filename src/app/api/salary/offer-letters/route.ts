@@ -22,12 +22,12 @@ export async function GET(_req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    const role = session!.user.role;
+    const role = session.user.role;
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
       return errorResponse("Only admins can view offer letter templates", 403);
     }
 
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const templates = await prisma.offerLetterTemplate.findMany({
       where: { companyId },
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
-    const role = session!.user.role;
+    const role = session.user.role;
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
       return errorResponse("Only admins can create offer letter templates", 403);
     }
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, content } = parsed.data;
-    const companyId = session!.user.companyId;
+    const companyId = session.user.companyId;
 
     const template = await prisma.offerLetterTemplate.create({
       data: {

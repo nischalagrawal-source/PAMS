@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get("type");
 
     const where: Record<string, unknown> = {
-      userId: session!.user.id,
+      userId: session.user.id,
     };
 
     if (type) {
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       prisma.notification.count({ where }),
       prisma.notification.count({
         where: {
-          userId: session!.user.id,
+          userId: session.user.id,
           status: NotificationStatus.PENDING,
         },
       }),
