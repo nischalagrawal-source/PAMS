@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
   if (authError) return authError;
 
   const body = await req.json();
+  try {
   const {
     name, email, designation, department, phone, branch,
     date_of_joining, basic_salary, hra, special_allowance, companyId,

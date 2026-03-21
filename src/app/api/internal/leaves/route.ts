@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
   if (authError) return authError;
 
   const body = await req.json();
+  try {
   const { employee_id, leave_type, from_date, to_date, reason, days } = body;
 
   if (!employee_id || !from_date || !to_date) {
