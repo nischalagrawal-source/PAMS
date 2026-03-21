@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const authError = validateInternalKey(req);
   if (authError) return authError;
 
+  try {
   const { searchParams } = new URL(req.url);
   const fy = searchParams.get("financial_year") || "";
   const companyId = searchParams.get("companyId") || undefined;
@@ -92,4 +93,8 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({ balances });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

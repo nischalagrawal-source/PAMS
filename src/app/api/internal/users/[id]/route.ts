@@ -12,6 +12,8 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
+
+  try {
   const {
     name, email, designation, department, phone,
     date_of_joining, basic_salary, hra, special_allowance, status,
@@ -56,4 +58,8 @@ export async function PUT(
   }
 
   return NextResponse.json({ success: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

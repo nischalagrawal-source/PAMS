@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const authError = validateInternalKey(req);
   if (authError) return authError;
 
+  try {
   const { searchParams } = new URL(req.url);
   const companyId = searchParams.get("companyId") || undefined;
 
@@ -51,6 +52,10 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ requests });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // POST /api/internal/leaves — create a new leave request
@@ -85,4 +90,8 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ success: true, id: leave.id });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

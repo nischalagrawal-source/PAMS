@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const authError = validateInternalKey(req);
   if (authError) return authError;
 
+  try {
   const { searchParams } = new URL(req.url);
   const companyId = searchParams.get("companyId") || undefined;
 
@@ -40,6 +41,10 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ employees });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // POST /api/internal/users — create a new employee + salary structure
@@ -105,4 +110,8 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true, employee: { id: user.id, name, email } });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

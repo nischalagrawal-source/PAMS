@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   const authError = validateInternalKey(req);
   if (authError) return authError;
 
+  try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
@@ -47,6 +48,10 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ records: mapped });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // POST /api/internal/attendance — bulk create attendance records
