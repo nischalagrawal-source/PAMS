@@ -17,7 +17,7 @@ cd $APP_DIR
 
 # 1. Pull latest code
 echo "→ Pulling latest code..."
-git pull origin main
+git pull origin master
 
 # 2. Install dependencies
 echo "→ Installing dependencies..."
