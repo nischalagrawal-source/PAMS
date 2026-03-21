@@ -14,8 +14,9 @@ export const authEdgeConfig: NextAuthConfig = {
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/register");
       const isApiAuth = nextUrl.pathname.startsWith("/api/auth");
+      const isInternalApi = nextUrl.pathname.startsWith("/api/internal");
 
-      if (isApiAuth) return true;
+      if (isApiAuth || isInternalApi) return true;
 
       if (!isOnAuth) {
         // Protected route
