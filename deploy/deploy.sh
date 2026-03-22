@@ -23,24 +23,27 @@ git pull origin master
 echo "→ Installing dependencies..."
 npm ci --production=false
 
-# 3. Generate Prisma client
+# 3. Sync database schema (required when models change)
+echo "→ Syncing database schema..."
+npx prisma db push --skip-generate
+
+# 4. Generate Prisma client (must be after db push for fresh types)
 echo "→ Generating Prisma client..."
 npx prisma generate
 
-# 4. Push schema changes only if DATABASE_URL is explicitly set
-# Skip on regular deploys — Nhost manages the DB schema separately.
-# To manually sync schema run: DATABASE_URL=... npx prisma db push
-echo "→ Skipping prisma db push (schema is managed by Nhost)"
+# 5. Clean .next cache for fresh build
+echo "→ Cleaning .next cache..."
+rm -rf .next
 
-# 5. Build Next.js for production
+# 6. Build Next.js for production
 echo "→ Building for production..."
 npm run build
 
-# 6. Restart PM2
+# 7. Restart PM2
 echo "→ Restarting app..."
 pm2 restart pams || pm2 start ecosystem.config.js
 
-# 7. Save PM2 config (survives reboot)
+# 8. Save PM2 config (survives reboot)
 pm2 save
 pm2 startup systemd -u root --hp /root 2>/dev/null || true
 
