@@ -2,6 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "./db";
 import type { FeatureKey } from "./constants";
 import type { Permission } from "@/types";
@@ -142,6 +143,16 @@ export const authConfig: NextAuthConfig = {
             permissions: permissions as Record<FeatureKey, Permission>,
           };
         } catch (e) {
+          if (e instanceof Prisma.PrismaClientKnownRequestError) {
+            console.error(
+              `[SSO] Prisma error code=${e.code} message=${e.message} meta=${JSON.stringify(e.meta ?? {})}`
+            );
+            return null;
+          }
+          if (e instanceof Prisma.PrismaClientValidationError) {
+            console.error(`[SSO] Prisma validation error: ${e.message}`);
+            return null;
+          }
           console.error("[SSO] Token validation failed:", e);
           return null;
         }
