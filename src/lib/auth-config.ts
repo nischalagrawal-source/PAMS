@@ -31,22 +31,22 @@ export const authConfig: NextAuthConfig = {
           if (!payload?.email) return null;
 
           // Map CA Website roles → PMS roles.
-          // Partner/admin/superadmin should land with full PMS access.
+          // NRACO admins become company-scoped ADMIN (not global SUPER_ADMIN).
           const pmsRole = ["superadmin", "admin", "partner"].includes(payload.role)
-            ? "SUPER_ADMIN"
+            ? "ADMIN"
             : "STAFF";
 
           // Find existing PMS user or create on first SSO login
           let user = await prisma.user.findUnique({
             where: { email: payload.email },
-            include: { company: { select: { name: true } }, featurePermissions: true },
+            include: { company: { select: { name: true } }, branch: { select: { name: true } }, featurePermissions: true },
           });
 
           if (user && user.role !== pmsRole) {
             user = await prisma.user.update({
               where: { id: user.id },
-              data: { role: pmsRole as "SUPER_ADMIN" | "STAFF" },
-              include: { company: { select: { name: true } }, featurePermissions: true },
+              data: { role: pmsRole as "ADMIN" | "STAFF" },
+              include: { company: { select: { name: true } }, branch: { select: { name: true } }, featurePermissions: true },
             });
           }
 
@@ -72,10 +72,10 @@ export const authConfig: NextAuthConfig = {
                 firstName,
                 lastName,
                 employeeCode,
-                role: pmsRole as "SUPER_ADMIN" | "STAFF",
+                role: pmsRole as "ADMIN" | "STAFF",
                 designation: payload.branch || "",
               },
-              include: { company: { select: { name: true } }, featurePermissions: true },
+              include: { company: { select: { name: true } }, branch: { select: { name: true } }, featurePermissions: true },
             });
 
           }
@@ -83,7 +83,7 @@ export const authConfig: NextAuthConfig = {
           if (!user.isActive) return null;
 
           const permissions: Record<string, Permission> = {};
-          if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
+          if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && user.role !== "BRANCH_ADMIN") {
             for (const fp of user.featurePermissions) {
               permissions[fp.feature] = {
                 canView: fp.canView,
@@ -104,6 +104,8 @@ export const authConfig: NextAuthConfig = {
             role: user.role,
             companyId: user.companyId,
             companyName: user.company.name,
+            branchId: user.branchId ?? null,
+            branchName: user.branch?.name ?? null,
             employeeCode: user.employeeCode,
             profilePhoto: user.profilePhoto,
             permissions: permissions as Record<FeatureKey, Permission>,
@@ -127,6 +129,7 @@ export const authConfig: NextAuthConfig = {
           where: { email: credentials.email as string },
           include: {
             company: { select: { name: true } },
+            branch: { select: { name: true } },
             featurePermissions: true,
           },
         });
@@ -139,10 +142,9 @@ export const authConfig: NextAuthConfig = {
         );
         if (!isPasswordValid) return null;
 
-        // SUPER_ADMIN and ADMIN bypass all permission checks,
-        // so skip storing permissions to keep JWT under 4KB cookie limit
+        // SUPER_ADMIN, ADMIN and BRANCH_ADMIN bypass all permission checks
         const permissions: Record<string, Permission> = {};
-        if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
+        if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && user.role !== "BRANCH_ADMIN") {
           for (const fp of user.featurePermissions) {
             permissions[fp.feature] = {
               canView: fp.canView,
@@ -163,6 +165,8 @@ export const authConfig: NextAuthConfig = {
           role: user.role,
           companyId: user.companyId,
           companyName: user.company.name,
+          branchId: user.branchId ?? null,
+          branchName: user.branch?.name ?? null,
           employeeCode: user.employeeCode,
           profilePhoto: user.profilePhoto,
           permissions: permissions as Record<FeatureKey, Permission>,
@@ -179,6 +183,8 @@ export const authConfig: NextAuthConfig = {
         token.role = user.role;
         token.companyId = user.companyId;
         token.companyName = user.companyName;
+        token.branchId = user.branchId ?? null;
+        token.branchName = user.branchName ?? null;
         token.employeeCode = user.employeeCode;
         token.profilePhoto = user.profilePhoto;
         token.permissions = user.permissions;
@@ -194,6 +200,8 @@ export const authConfig: NextAuthConfig = {
         session.user.role = t.role as string;
         session.user.companyId = t.companyId as string;
         session.user.companyName = t.companyName as string;
+        session.user.branchId = (t.branchId ?? null) as string | null;
+        session.user.branchName = (t.branchName ?? null) as string | null;
         session.user.employeeCode = t.employeeCode as string;
         session.user.profilePhoto = t.profilePhoto as string | null;
         session.user.permissions = t.permissions as typeof session.user.permissions;

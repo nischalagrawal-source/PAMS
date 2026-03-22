@@ -17,6 +17,7 @@ import {
   BarChart3,
   Users,
   Building2,
+  GitBranch,
   Radar,
   SlidersHorizontal,
   Shield,
@@ -36,6 +37,7 @@ const iconMap: Record<string, LucideIcon> = {
   BarChart3,
   Users,
   Building2,
+  GitBranch,
   Radar,
   SlidersHorizontal,
   Shield,
@@ -59,7 +61,19 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const canAccess = (feature: string) => {
     if (!user) return false;
-    if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return true;
+    if (user.role === "SUPER_ADMIN") return true;
+    if (user.role === "ADMIN") {
+      // Company admins don't see the global companies list
+      if (feature === "admin_companies") return false;
+      return true;
+    }
+    if (user.role === "BRANCH_ADMIN") {
+      // Branch admins don't manage companies or branches (company-level)
+      if (feature === "admin_companies" || feature === "admin_branches") return false;
+      // Branch admins can't change company-wide parameters
+      if (feature === "admin_parameters") return false;
+      return true;
+    }
     return hasPermission(user, feature as never, "canView");
   };
 
@@ -160,10 +174,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {user && !collapsed && (
         <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 p-4 dark:border-gray-800">
           <div className="text-xs text-gray-500">
-            <p className="font-medium text-gray-700 dark:text-gray-300">
-              {user.companyName}
-            </p>
-            <p>{user.role.replace("_", " ")}</p>
+            {user.role === "SUPER_ADMIN" ? (
+              <p className="font-medium text-gray-700 dark:text-gray-300">Platform</p>
+            ) : (
+              <p className="font-medium text-gray-700 dark:text-gray-300">
+                {(user as SessionUser & { branchName?: string | null }).branchName
+                  ? `${user.companyName} — ${(user as SessionUser & { branchName?: string | null }).branchName}`
+                  : user.companyName}
+              </p>
+            )}
+            <p>{user.role.replace(/_/g, " ")}</p>
           </div>
         </div>
       )}

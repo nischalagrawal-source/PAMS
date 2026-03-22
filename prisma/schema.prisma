@@ -17,6 +17,7 @@ datasource db {
 enum UserRole {
   SUPER_ADMIN
   ADMIN
+  BRANCH_ADMIN
   REVIEWER
   STAFF
 }
@@ -107,6 +108,7 @@ model Company {
 
   // Relations
   users              User[]
+  branches           Branch[]
   geoFences          GeoFence[]
   leavePolicies      LeavePolicy[]
   perfParameters     PerfParameter[]
@@ -132,6 +134,7 @@ model User {
   firstName      String
   lastName       String
   role           UserRole @default(STAFF)
+  branchId       String?  // null for SUPER_ADMIN and ADMIN (company-level)
   designation    String?
   department     String?
   dateOfJoining  DateTime?
@@ -143,6 +146,7 @@ model User {
 
   // Relations
   company             Company              @relation(fields: [companyId], references: [id])
+  branch              Branch?              @relation(fields: [branchId], references: [id])
   featurePermissions  FeaturePermission[]
   attendanceRecords   Attendance[]
   geoExitLogs         GeoExitLog[]
@@ -161,7 +165,29 @@ model User {
 
   @@unique([companyId, employeeCode])
   @@index([companyId])
+  @@index([companyId, branchId])
   @@map("users")
+}
+
+// ============================================================
+// BRANCH (within a company)
+// ============================================================
+
+model Branch {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  code      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  users   User[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("branches")
 }
 
 model FeaturePermission {

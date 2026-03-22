@@ -45,9 +45,19 @@ export async function GET(req: NextRequest) {
       assignedToId = session.user.id;
     }
 
+    // Scope by company + branch for branch-level roles
+    const isBranchScoped = ["BRANCH_ADMIN", "REVIEWER"].includes(session.user.role);
+    const userFilter: Record<string, unknown> =
+      session.user.role === "SUPER_ADMIN"
+        ? {}
+        : {
+            companyId: session.user.companyId,
+            ...(isBranchScoped ? { branchId: session.user.branchId } : {}),
+          };
+
     // Build where clause with tenant isolation via assignedTo relation
     const where: Record<string, unknown> = {
-      assignedTo: { companyId: session.user.companyId },
+      ...(Object.keys(userFilter).length > 0 ? { assignedTo: userFilter } : {}),
     };
 
     if (assignedToId) {

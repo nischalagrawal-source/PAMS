@@ -63,6 +63,7 @@ export const FEATURES = [
   { key: "reports", label: "Reports", description: "View reports & analytics" },
   { key: "notifications", label: "Notifications", description: "Notification management" },
   { key: "admin_users", label: "User Management", description: "Manage users & roles" },
+  { key: "admin_branches", label: "Branch Management", description: "Manage branches" },
   { key: "admin_companies", label: "Company Management", description: "Manage companies" },
   { key: "admin_geofences", label: "Geo-fence Management", description: "Manage geo-fences" },
   { key: "admin_parameters", label: "Parameters", description: "Manage performance parameters" },
@@ -126,6 +127,12 @@ export const ADMIN_NAV_ITEMS = [
     href: "/admin/users",
     icon: "Users",
     feature: "admin_users" as FeatureKey,
+  },
+  {
+    title: "Branches",
+    href: "/admin/branches",
+    icon: "GitBranch",
+    feature: "admin_branches" as FeatureKey,
   },
   {
     title: "Companies",

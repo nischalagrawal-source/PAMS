@@ -10,10 +10,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const role = searchParams.get("role");
 
+    const isBranchScoped = ["BRANCH_ADMIN", "REVIEWER"].includes(session.user.role);
+
     const users = await prisma.user.findMany({
       where: {
         companyId: session.user.companyId,
         isActive: true,
+        ...(isBranchScoped ? { branchId: session.user.branchId } : {}),
         ...(role ? { role: role as never } : {}),
       },
       select: {

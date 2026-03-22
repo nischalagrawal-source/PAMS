@@ -27,12 +27,29 @@ export function checkPermission(
   feature: FeatureKey,
   action: "canView" | "canCreate" | "canEdit" | "canDelete" | "canApprove" = "canView"
 ): boolean {
-  if (session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN") return true;
+  if (session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN" || session.user.role === "BRANCH_ADMIN") return true;
   const permissions = session.user.permissions;
   if (!permissions) return false;
   const perm = permissions[feature];
   if (!perm) return false;
   return !!perm[action];
+}
+
+/**
+ * Returns a Prisma where-clause fragment to scope user queries to the
+ * correct tenancy level:
+ *   SUPER_ADMIN   → no filter
+ *   ADMIN         → companyId only (all branches)
+ *   BRANCH_ADMIN / REVIEWER → companyId + branchId
+ *   (STAFF is always own-records-only — handled in each route)
+ */
+export function getUserScopeFilter(
+  session: { user: { role: string; companyId?: string | null; branchId?: string | null } }
+) {
+  const { role, companyId, branchId } = session.user;
+  if (role === "SUPER_ADMIN") return {};
+  if (role === "ADMIN") return { companyId: companyId! };
+  return { companyId: companyId!, branchId: branchId ?? undefined };
 }
 
 /**

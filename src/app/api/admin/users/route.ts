@@ -8,6 +8,7 @@ import {
   errorResponse,
   successResponse,
   parseBody,
+  getUserScopeFilter,
 } from "@/lib/api-utils";
 
 const createUserSchema = z.object({
@@ -16,13 +17,14 @@ const createUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   employeeCode: z.string().min(1, "Employee code is required"),
-  role: z.enum(["STAFF", "REVIEWER", "ADMIN", "SUPER_ADMIN"]),
+  role: z.enum(["STAFF", "REVIEWER", "BRANCH_ADMIN", "ADMIN", "SUPER_ADMIN"]),
   phone: z.string().optional(),
   designation: z.string().optional(),
   department: z.string().optional(),
   dateOfJoining: z.string().optional(),
   workMode: z.enum(["office", "client", "hybrid"]).optional(),
   companyId: z.string().optional(),
+  branchId: z.string().optional(),
 });
 
 /**
@@ -93,8 +95,14 @@ export async function GET(req: NextRequest) {
       ? queryCompanyId
       : session.user.companyId;
 
+    // BRANCH_ADMIN can only see their own branch's users
+    const scopeFilter = getUserScopeFilter(session);
+    const whereClause = isSuperAdmin && queryCompanyId
+      ? { companyId: queryCompanyId }
+      : scopeFilter;
+
     const users = await prisma.user.findMany({
-      where: { companyId },
+      where: whereClause,
       select: {
         id: true,
         firstName: true,
@@ -168,12 +176,18 @@ export async function POST(req: NextRequest) {
       dateOfJoining,
       workMode,
       companyId: bodyCompanyId,
+      branchId,
     } = parsed.data;
 
     const isSuperAdmin = session.user.role === "SUPER_ADMIN";
     const companyId = isSuperAdmin && bodyCompanyId
       ? bodyCompanyId
       : session.user.companyId;
+
+    // BRANCH_ADMIN can only create users in their own branch
+    const effectiveBranchId = session.user.role === "BRANCH_ADMIN"
+      ? session.user.branchId ?? undefined
+      : branchId ?? undefined;
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -196,6 +210,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.create({
       data: {
         companyId,
+        branchId: effectiveBranchId,
         email,
         password: hashedPassword,
         firstName,

@@ -8,6 +8,8 @@ declare module "next-auth" {
     role: string;
     companyId: string;
     companyName: string;
+    branchId?: string | null;
+    branchName?: string | null;
     employeeCode: string;
     profilePhoto?: string | null;
     permissions: Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean; canApprove: boolean }>;
@@ -23,6 +25,8 @@ declare module "next-auth" {
       role: string;
       companyId: string;
       companyName: string;
+      branchId?: string | null;
+      branchName?: string | null;
       employeeCode: string;
       profilePhoto?: string | null;
       image?: string | null;
@@ -39,6 +43,8 @@ declare module "next-auth/jwt" {
     role: string;
     companyId: string;
     companyName: string;
+    branchId?: string | null;
+    branchName?: string | null;
     employeeCode: string;
     profilePhoto?: string | null;
     permissions: Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean; canApprove: boolean }>;

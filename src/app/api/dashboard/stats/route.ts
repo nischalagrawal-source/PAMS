@@ -11,8 +11,10 @@ export async function GET() {
   const userId = session.user.id!;
   const role = session.user.role!;
   const companyId = session.user.companyId;
+  const branchId = session.user.branchId;
   const isSuperAdmin = role === "SUPER_ADMIN";
-  const isAdminOrAbove = role === "SUPER_ADMIN" || role === "ADMIN";
+  const isBranchScoped = role === "BRANCH_ADMIN" || role === "REVIEWER";
+  const isAdminOrAbove = ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN", "REVIEWER"].includes(role);
 
   try {
     const today = new Date();
@@ -23,8 +25,13 @@ export async function GET() {
 
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    // Company filter — SUPER_ADMIN sees all, others see their company
+    // Scoping filters
     const companyFilter = isSuperAdmin ? {} : { companyId: companyId! };
+    const userScopeFilter = isSuperAdmin
+      ? {}
+      : isBranchScoped
+      ? { companyId: companyId!, branchId: branchId ?? undefined }
+      : { companyId: companyId! };
 
     // ──────────────────────────────────────
     // Run all queries in parallel
@@ -45,16 +52,16 @@ export async function GET() {
       topPerformers,
     ] = await Promise.all([
       // Total staff
-      prisma.user.count({ where: { ...companyFilter, role: { not: "SUPER_ADMIN" } } }),
+      prisma.user.count({ where: { ...userScopeFilter, role: { not: "SUPER_ADMIN" } } }),
 
       // Active staff
-      prisma.user.count({ where: { ...companyFilter, isActive: true, role: { not: "SUPER_ADMIN" } } }),
+      prisma.user.count({ where: { ...userScopeFilter, isActive: true, role: { not: "SUPER_ADMIN" } } }),
 
       // Present today
       prisma.attendance.count({
         where: {
           date: today,
-          user: companyFilter,
+          user: userScopeFilter,
         },
       }),
 
@@ -63,7 +70,7 @@ export async function GET() {
         where: {
           status: { in: ["ASSIGNED", "IN_PROGRESS"] },
           ...(isSuperAdmin ? {} : isAdminOrAbove
-            ? { OR: [{ assignedTo: companyFilter }, { assignedBy: companyFilter }] }
+            ? { OR: [{ assignedTo: userScopeFilter }, { assignedBy: userScopeFilter }] }
             : { assignedToId: userId }),
         },
       }),
@@ -74,7 +81,7 @@ export async function GET() {
           isOverdue: true,
           status: { in: ["ASSIGNED", "IN_PROGRESS"] },
           ...(isSuperAdmin ? {} : isAdminOrAbove
-            ? { OR: [{ assignedTo: companyFilter }, { assignedBy: companyFilter }] }
+            ? { OR: [{ assignedTo: userScopeFilter }, { assignedBy: userScopeFilter }] }
             : { assignedToId: userId }),
         },
       }),
@@ -85,7 +92,7 @@ export async function GET() {
           status: "COMPLETED",
           completedAt: { gte: startOfWeek },
           ...(isSuperAdmin ? {} : isAdminOrAbove
-            ? { OR: [{ assignedTo: companyFilter }, { assignedBy: companyFilter }] }
+            ? { OR: [{ assignedTo: userScopeFilter }, { assignedBy: userScopeFilter }] }
             : { assignedToId: userId }),
         },
       }),
@@ -96,7 +103,7 @@ export async function GET() {
           status: "APPROVED",
           startDate: { lte: today },
           endDate: { gte: today },
-          user: companyFilter,
+          user: userScopeFilter,
         },
       }),
 
@@ -107,7 +114,7 @@ export async function GET() {
           startDate: { lte: today },
           endDate: { gte: today },
           isAdvance: true,
-          user: companyFilter,
+          user: userScopeFilter,
         },
       }),
 
@@ -118,7 +125,7 @@ export async function GET() {
           startDate: { lte: today },
           endDate: { gte: today },
           isEmergency: true,
-          user: companyFilter,
+          user: userScopeFilter,
         },
       }),
 
@@ -127,7 +134,7 @@ export async function GET() {
         _sum: { overtimeHours: true },
         where: {
           date: { gte: startOfMonth },
-          user: companyFilter,
+          user: userScopeFilter,
         },
       }),
 
@@ -139,10 +146,10 @@ export async function GET() {
         },
       }),
 
-      // Recent activity — last 5 notifications for the user, or recent events for admins
+      // Recent activity
       isAdminOrAbove
         ? prisma.notification.findMany({
-            where: isSuperAdmin ? {} : { user: companyFilter },
+            where: isSuperAdmin ? {} : { user: userScopeFilter },
             orderBy: { createdAt: "desc" },
             take: 5,
             include: { user: { select: { firstName: true, lastName: true } } },
@@ -153,11 +160,11 @@ export async function GET() {
             take: 5,
           }),
 
-      // Top performers — best weighted scores this period
+      // Top performers
       isAdminOrAbove
         ? prisma.perfScore.findMany({
             where: {
-              user: companyFilter,
+              user: userScopeFilter,
             },
             orderBy: { weightedScore: "desc" },
             take: 5,

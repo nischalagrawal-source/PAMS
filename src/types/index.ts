@@ -13,6 +13,8 @@ export interface SessionUser {
   role: UserRole;
   companyId: string;
   companyName: string;
+  branchId?: string | null;
+  branchName?: string | null;
   employeeCode: string;
   profilePhoto?: string | null;
   permissions: Record<FeatureKey, Permission>;
@@ -34,8 +36,8 @@ export function hasPermission(
   feature: FeatureKey,
   action: keyof Permission = "canView"
 ): boolean {
-  // Super admin has all permissions
-  if (user.role === "SUPER_ADMIN") return true;
+  // Super admin and branch admin have all permissions (data scoped by API)
+  if (user.role === "SUPER_ADMIN" || user.role === "BRANCH_ADMIN") return true;
 
   const perm = user.permissions[feature];
   if (!perm) return false;

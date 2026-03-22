@@ -26,12 +26,17 @@ export async function GET(req: NextRequest) {
       userId = session.user.id;
     }
 
-    // Build where clause with tenant isolation through user relation
-    const where: Record<string, unknown> = {
-      user: {
-        companyId: session.user.companyId,
-      },
+    // Scope by company + branch for branch-level roles
+    const isBranchScoped = ["BRANCH_ADMIN", "REVIEWER"].includes(session.user.role);
+    const userFilter: Record<string, unknown> = {
+      companyId: session.user.companyId,
+      ...(isBranchScoped ? { branchId: session.user.branchId } : {}),
     };
+    // SUPER_ADMIN sees all attendance (no company filter)
+    const where: Record<string, unknown> =
+      session.user.role === "SUPER_ADMIN"
+        ? {}
+        : { user: userFilter };
 
     if (userId) {
       where.userId = userId;
