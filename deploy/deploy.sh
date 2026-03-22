@@ -25,7 +25,12 @@ npm ci --production=false
 
 # 3. Sync database schema (required when models change)
 echo "→ Syncing database schema..."
-npx prisma db push --skip-generate
+if npx prisma db push --skip-generate; then
+	echo "→ Schema synced with --skip-generate"
+else
+	echo "→ --skip-generate not supported, retrying without it..."
+	npx prisma db push
+fi
 
 # 4. Generate Prisma client (must be after db push for fresh types)
 echo "→ Generating Prisma client..."

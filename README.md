@@ -108,3 +108,24 @@ prisma/
 | `npm run db:migrate` | Run database migrations |
 | `npm run db:seed` | Seed database with sample data |
 | `npm run db:studio` | Open Prisma Studio |
+
+## Automatic Deployment (GitHub Actions)
+
+This repository is configured to auto-deploy on every push to the `master` branch via `.github/workflows/auto-deploy.yml`.
+
+### One-time setup in GitHub
+
+1. Open your repository on GitHub.
+2. Go to **Settings -> Secrets and variables -> Actions -> New repository secret**.
+3. Create these secrets:
+   - `VPS_HOST`: VPS public IP or hostname
+   - `VPS_USER`: SSH user (for example `root`)
+   - `VPS_PORT`: SSH port (usually `22`)
+   - `VPS_SSH_KEY`: private SSH key content used for VPS login
+
+### Required server state
+
+- The VPS must have the app at `/var/www/pams` and `deploy/deploy.sh` available.
+- Your deploy user must have permissions to run the deploy script and restart PM2.
+
+After this one-time setup, every push to `master` will automatically deploy.
