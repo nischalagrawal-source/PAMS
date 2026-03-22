@@ -29,6 +29,7 @@ interface GeoFence {
 
 type GeoFenceFormData = {
   label: string;
+  address: string;
   latitude: string;
   longitude: string;
   radiusM: string;
@@ -37,6 +38,7 @@ type GeoFenceFormData = {
 
 const emptyForm: GeoFenceFormData = {
   label: "",
+  address: "",
   latitude: "",
   longitude: "",
   radiusM: "200",
@@ -129,6 +131,7 @@ export default function GeoFencesPage() {
   function openEdit(fence: GeoFence) {
     setForm({
       label: fence.label,
+      address: "",
       latitude: fence.latitude.toString(),
       longitude: fence.longitude.toString(),
       radiusM: fence.radiusM.toString(),
@@ -168,6 +171,37 @@ export default function GeoFencesPage() {
       },
       () => setFormError("Could not get location")
     );
+  };
+
+  const [isGeocoding, setIsGeocoding] = useState(false);
+
+  const handleGeocodeAddress = async () => {
+    if (!form.address.trim()) {
+      setFormError("Please enter address before fetching coordinates");
+      return;
+    }
+    setFormError("");
+    setIsGeocoding(true);
+    try {
+      const res = await fetch("/api/admin/geofences/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: form.address }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error || "Failed to geocode address");
+      }
+      setForm((prev) => ({
+        ...prev,
+        latitude: Number(json.data.latitude).toFixed(6),
+        longitude: Number(json.data.longitude).toFixed(6),
+      }));
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to geocode address");
+    } finally {
+      setIsGeocoding(false);
+    }
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -223,6 +257,27 @@ export default function GeoFencesPage() {
                   placeholder="e.g., Main Office - Mumbai"
                   className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
+                <textarea
+                  value={form.address}
+                  onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="Paste full office/client address"
+                  rows={2}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleGeocodeAddress}
+                    disabled={isGeocoding}
+                    className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950"
+                  >
+                    {isGeocoding ? "Fetching..." : "Get Coordinates from Address"}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
