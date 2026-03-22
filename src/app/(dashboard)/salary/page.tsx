@@ -28,6 +28,7 @@ import {
   useUpdateSlip,
   useOfferTemplates,
   useGenerateOfferLetter,
+  type OfferLetterInput,
   type SalarySlip,
 } from "@/hooks/use-salary";
 
@@ -63,6 +64,22 @@ export default function SalaryPage() {
   const [showOfferGen, setShowOfferGen] = useState(false);
   const [offerUserId, setOfferUserId] = useState("");
   const [offerTemplateId, setOfferTemplateId] = useState("");
+  const [offerForm, setOfferForm] = useState<OfferLetterInput>({
+    annualCtc: undefined,
+    monthlyGross: undefined,
+    probationPeriodMonths: 6,
+    securityDeposit: 0,
+    joiningDate: "",
+    issueDate: new Date().toISOString().slice(0, 10),
+    jobLocation: "",
+    reportingManager: "",
+    panNumber: "",
+    bankName: "",
+    bankAccountNumber: "",
+    ifscCode: "",
+    specialTerms: "",
+  });
+  const [generatedOfferContent, setGeneratedOfferContent] = useState("");
 
   const structureQuery = useSalaryStructure(isStaff ? undefined : undefined);
   const slipsQuery = useSalarySlips({ page, limit: 10 });
@@ -100,9 +117,14 @@ export default function SalaryPage() {
   }
 
   function handleGenerateOffer() {
-    if (!offerUserId || !offerTemplateId) return;
-    offerMutation.mutate({ userId: offerUserId, templateId: offerTemplateId }, {
-      onSuccess: () => { setShowOfferGen(false); setOfferUserId(""); setOfferTemplateId(""); },
+    if (!offerUserId) return;
+    offerMutation.mutate({ userId: offerUserId, templateId: offerTemplateId || undefined, offerData: offerForm }, {
+      onSuccess: (data) => {
+        setGeneratedOfferContent(data.content);
+        setShowOfferGen(false);
+        setOfferUserId("");
+        setOfferTemplateId("");
+      },
     });
   }
 
@@ -195,12 +217,12 @@ export default function SalaryPage() {
       {/* Offer Letter Modal */}
       {showOfferGen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate Offer Letter</h3>
               <button onClick={() => setShowOfferGen(false)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} /></button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Employee</label>
                 <select value={offerUserId} onChange={(e) => setOfferUserId(e.target.value)} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white">
@@ -209,18 +231,93 @@ export default function SalaryPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Template</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Template (optional)</label>
                 <select value={offerTemplateId} onChange={(e) => setOfferTemplateId(e.target.value)} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white">
-                  <option value="">Select template...</option>
+                  <option value="">Auto (default template)</option>
                   {templatesQuery.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
+                <p className="mt-1 text-xs text-gray-500">Use placeholders like {"{{employeeName}}"}, {"{{annualCtc}}"}, {"{{panNumber}}"}, {"{{bankName}}"}, {"{{securityDeposit}}"}.</p>
               </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Annual CTC</label>
+                  <input type="number" min="0" value={offerForm.annualCtc ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, annualCtc: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 600000" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Gross</label>
+                  <input type="number" min="0" value={offerForm.monthlyGross ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, monthlyGross: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 50000" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Probation (months)</label>
+                  <input type="number" min="0" value={offerForm.probationPeriodMonths ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, probationPeriodMonths: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 6" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Security Deposit</label>
+                  <input type="number" min="0" value={offerForm.securityDeposit ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, securityDeposit: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 10000" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Issue Date</label>
+                  <input type="date" value={offerForm.issueDate || ""} onChange={(e) => setOfferForm((p) => ({ ...p, issueDate: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Joining Date</label>
+                  <input type="date" value={offerForm.joiningDate || ""} onChange={(e) => setOfferForm((p) => ({ ...p, joiningDate: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Job Location</label>
+                  <input type="text" value={offerForm.jobLocation || ""} onChange={(e) => setOfferForm((p) => ({ ...p, jobLocation: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. New Delhi" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Reporting Manager</label>
+                  <input type="text" value={offerForm.reportingManager || ""} onChange={(e) => setOfferForm((p) => ({ ...p, reportingManager: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Manager name" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">PAN Number</label>
+                  <input type="text" value={offerForm.panNumber || ""} onChange={(e) => setOfferForm((p) => ({ ...p, panNumber: e.target.value.toUpperCase() }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="ABCDE1234F" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Bank Name</label>
+                  <input type="text" value={offerForm.bankName || ""} onChange={(e) => setOfferForm((p) => ({ ...p, bankName: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Bank name" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Bank Account Number</label>
+                  <input type="text" value={offerForm.bankAccountNumber || ""} onChange={(e) => setOfferForm((p) => ({ ...p, bankAccountNumber: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Account number" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">IFSC Code</label>
+                  <input type="text" value={offerForm.ifscCode || ""} onChange={(e) => setOfferForm((p) => ({ ...p, ifscCode: e.target.value.toUpperCase() }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="IFSC code" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Special Terms</label>
+                <textarea value={offerForm.specialTerms || ""} onChange={(e) => setOfferForm((p) => ({ ...p, specialTerms: e.target.value }))} rows={3} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Any additional terms and conditions..." />
+              </div>
+
               <div className="flex justify-end gap-3">
                 <button onClick={() => setShowOfferGen(false)} className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300">Cancel</button>
-                <button onClick={handleGenerateOffer} disabled={!offerUserId || !offerTemplateId || offerMutation.isPending} className="flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-50">
+                <button onClick={handleGenerateOffer} disabled={!offerUserId || offerMutation.isPending} className="flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-50">
                   {offerMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />} Generate
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offer Letter Preview */}
+      {!!generatedOfferContent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generated Offer Letter</h3>
+              <button onClick={() => setGeneratedOfferContent("")} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} /></button>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" dangerouslySetInnerHTML={{ __html: generatedOfferContent }} />
+            <div className="mt-4 flex justify-end gap-3">
+              <button onClick={() => navigator.clipboard.writeText(generatedOfferContent)} className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300">Copy HTML</button>
+              <button onClick={() => window.print()} className="rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-500">Print</button>
             </div>
           </div>
         </div>

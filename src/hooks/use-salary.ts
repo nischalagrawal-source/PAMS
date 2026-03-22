@@ -58,6 +58,22 @@ export interface OfferLetter {
   user?: { firstName: string; lastName: string };
 }
 
+export interface OfferLetterInput {
+  annualCtc?: number;
+  monthlyGross?: number;
+  probationPeriodMonths?: number;
+  securityDeposit?: number;
+  joiningDate?: string;
+  issueDate?: string;
+  jobLocation?: string;
+  reportingManager?: string;
+  panNumber?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  ifscCode?: string;
+  specialTerms?: string;
+}
+
 interface SlipListResponse {
   records: SalarySlip[];
   total: number;
@@ -184,7 +200,7 @@ export function useCreateOfferTemplate() {
 export function useGenerateOfferLetter() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { userId: string; templateId: string }) => {
+    mutationFn: async (data: { userId: string; templateId?: string; offerData?: OfferLetterInput }) => {
       const res = await fetch("/api/salary/offer-letters/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
