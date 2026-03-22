@@ -28,6 +28,18 @@ export const STANDARD_WORK_HOURS = 8;
 export const WFH_DISTANCE_THRESHOLD = 5000;
 
 /**
+ * Maximum acceptable GPS accuracy for check-in/check-out in meters.
+ * Readings above this will be flagged for review.
+ */
+export const MAX_GPS_ACCURACY_M = 120;
+
+/**
+ * Extra allowed distance beyond fence radius during check-out.
+ * Helps absorb GPS drift while still enforcing boundary checks.
+ */
+export const CHECKOUT_FENCE_BUFFER_M = 75;
+
+/**
  * Minimum advance notice for planned leave (days)
  */
 export const DEFAULT_ADVANCE_NOTICE_DAYS = 7;

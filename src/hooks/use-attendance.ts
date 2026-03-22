@@ -10,8 +10,10 @@ interface AttendanceRecord {
   checkOutTime: string | null;
   checkInLat: number | null;
   checkInLng: number | null;
+  checkInAccuracyM: number | null;
   checkOutLat: number | null;
   checkOutLng: number | null;
+  checkOutAccuracyM: number | null;
   locationType: string;
   geoFenceId: string | null;
   geoExitCount: number;
@@ -23,6 +25,8 @@ interface AttendanceRecord {
   lateByMinutes: number;
   isHalfDay: boolean;
   notes: string | null;
+  isSuspiciousLocation: boolean;
+  suspiciousReason: string | null;
   geoFence?: { id: string; label: string; latitude: number; longitude: number; radiusM: number } | null;
   geoExitLogs?: Array<{ id: string; exitTime: string; returnTime: string | null; distanceFromFence: number }>;
 }
@@ -62,7 +66,7 @@ async function fetchAttendanceList(params: {
   return json.data;
 }
 
-async function checkIn(coords: { latitude: number; longitude: number }): Promise<AttendanceRecord> {
+async function checkIn(coords: { latitude: number; longitude: number; accuracy?: number }): Promise<AttendanceRecord> {
   const res = await fetch("/api/attendance/check-in", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -73,7 +77,7 @@ async function checkIn(coords: { latitude: number; longitude: number }): Promise
   return json.data;
 }
 
-async function checkOut(coords: { latitude: number; longitude: number }): Promise<AttendanceRecord> {
+async function checkOut(coords: { latitude: number; longitude: number; accuracy?: number }): Promise<AttendanceRecord> {
   const res = await fetch("/api/attendance/check-out", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

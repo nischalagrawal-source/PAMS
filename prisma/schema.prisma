@@ -135,6 +135,7 @@ model User {
   lastName       String
   role           UserRole @default(STAFF)
   branchId       String?  // null for SUPER_ADMIN and ADMIN (company-level)
+  assignedGeoFenceId String?
   designation    String?
   department     String?
   dateOfJoining  DateTime?
@@ -147,6 +148,7 @@ model User {
   // Relations
   company             Company              @relation(fields: [companyId], references: [id])
   branch              Branch?              @relation(fields: [branchId], references: [id])
+  assignedGeoFence    GeoFence?            @relation("AssignedGeoFence", fields: [assignedGeoFenceId], references: [id])
   featurePermissions  FeaturePermission[]
   attendanceRecords   Attendance[]
   geoExitLogs         GeoExitLog[]
@@ -166,6 +168,7 @@ model User {
   @@unique([companyId, employeeCode])
   @@index([companyId])
   @@index([companyId, branchId])
+  @@index([assignedGeoFenceId])
   @@map("users")
 }
 
@@ -226,6 +229,7 @@ model GeoFence {
 
   company    Company      @relation(fields: [companyId], references: [id])
   attendance Attendance[]
+  assignedUsers User[]    @relation("AssignedGeoFence")
 
   @@index([companyId])
   @@map("geo_fences")
@@ -239,8 +243,10 @@ model Attendance {
   checkOutTime   DateTime?
   checkInLat     Float?
   checkInLng     Float?
+  checkInAccuracyM Float?
   checkOutLat    Float?
   checkOutLng    Float?
+  checkOutAccuracyM Float?
   locationType   LocationType     @default(UNKNOWN)
   geoFenceId     String?          // Which geo-fence they checked in at
   geoExitCount   Int              @default(0) // Times left geo-fence during day
@@ -248,6 +254,8 @@ model Attendance {
   totalHours     Float?           // Calculated hours worked
   overtimeHours  Float?           // Hours beyond standard (e.g., 8hrs)
   notes          String?
+  isSuspiciousLocation Boolean     @default(false)
+  suspiciousReason String?
   isWfh          Boolean          @default(false)
   // Late arrival tracking
   isLate         Boolean          @default(false) // True if checked in after inTime + graceMinutes

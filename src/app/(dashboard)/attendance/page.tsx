@@ -131,7 +131,7 @@ export default function AttendancePage() {
   const handleCheckIn = useCallback(async () => {
     try {
       const pos = await geo.getCurrentPosition();
-      checkInMutation.mutate({ latitude: pos.latitude, longitude: pos.longitude });
+      checkInMutation.mutate({ latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy });
     } catch {
       // Error is shown via geo.error
     }
@@ -140,7 +140,7 @@ export default function AttendancePage() {
   const handleCheckOut = useCallback(async () => {
     try {
       const pos = await geo.getCurrentPosition();
-      checkOutMutation.mutate({ latitude: pos.latitude, longitude: pos.longitude });
+      checkOutMutation.mutate({ latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy });
     } catch {
       // Error is shown via geo.error
     }

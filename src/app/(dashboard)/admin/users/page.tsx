@@ -32,6 +32,8 @@ interface User {
   designation: string | null;
   department: string | null;
   workMode: string;
+  assignedGeoFenceId?: string | null;
+  assignedGeoFence?: { id: string; label: string; type: string } | null;
   dateOfJoining: string | null;
   isActive: boolean;
   profilePhoto: string | null;
@@ -48,6 +50,7 @@ type UserFormData = {
   designation: string;
   department: string;
   workMode: string;
+  assignedGeoFenceId: string;
   dateOfJoining: string;
 };
 
@@ -62,8 +65,15 @@ const emptyForm: UserFormData = {
   designation: "",
   department: "",
   workMode: "office",
+  assignedGeoFenceId: "",
   dateOfJoining: "",
 };
+
+interface GeoFenceLite {
+  id: string;
+  label: string;
+  type: string;
+}
 
 const ROLE_COLORS: Record<User["role"], string> = {
   STAFF: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -105,6 +115,16 @@ export default function UserManagementPage() {
     },
   });
 
+  const geofencesQuery = useQuery({
+    queryKey: ["admin", "geofences", "lite"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/geofences");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data as GeoFenceLite[];
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: UserFormData) => {
       const res = await fetch("/api/admin/users", {
@@ -112,6 +132,7 @@ export default function UserManagementPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
+          assignedGeoFenceId: data.assignedGeoFenceId || undefined,
           dateOfJoining: data.dateOfJoining || undefined,
         }),
       });
@@ -138,6 +159,7 @@ export default function UserManagementPage() {
         designation: data.designation || undefined,
         department: data.department || undefined,
         workMode: data.workMode,
+        assignedGeoFenceId: data.assignedGeoFenceId || null,
         dateOfJoining: data.dateOfJoining || undefined,
       };
       if (data.password) payload.password = data.password;
@@ -220,6 +242,7 @@ export default function UserManagementPage() {
       designation: user.designation ?? "",
       department: user.department ?? "",
       workMode: user.workMode,
+      assignedGeoFenceId: user.assignedGeoFence?.id ?? "",
       dateOfJoining: user.dateOfJoining ? user.dateOfJoining.split("T")[0] : "",
     });
     setEditingId(user.id);
@@ -488,7 +511,7 @@ export default function UserManagementPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-          <table className="w-full min-w-[800px] text-sm">
+          <table className="w-full min-w-[920px] text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
                 <th className="px-4 py-3 text-left font-semibold text-gray-500">Employee</th>
@@ -496,6 +519,7 @@ export default function UserManagementPage() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-500">Role</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-500">Department</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-500">Work Mode</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-500">Assigned Geo-fence</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-500">Status</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-500">Actions</th>
               </tr>
@@ -535,6 +559,9 @@ export default function UserManagementPage() {
                   </td>
                   <td className="px-4 py-3 capitalize text-gray-700 dark:text-gray-300">
                     {user.workMode}
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    {user.assignedGeoFence?.label || "Auto by work mode"}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -687,12 +714,27 @@ export default function UserManagementPage() {
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Work Mode</label>
                   <select
                     value={form.workMode}
-                    onChange={(e) => setForm((f) => ({ ...f, workMode: e.target.value }))}
+                    onChange={(e) => setForm((f) => ({ ...f, workMode: e.target.value, assignedGeoFenceId: "" }))}
                     className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                   >
                     <option value="office">Office</option>
                     <option value="client">Client Site</option>
                     <option value="hybrid">Hybrid</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Assigned Geo-fence</label>
+                  <select
+                    value={form.assignedGeoFenceId}
+                    onChange={(e) => setForm((f) => ({ ...f, assignedGeoFenceId: e.target.value }))}
+                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  >
+                    <option value="">Auto by work mode</option>
+                    {(geofencesQuery.data || [])
+                      .filter((g) => form.workMode === "hybrid" || (form.workMode === "office" ? g.type === "office" : g.type === "client_site"))
+                      .map((g) => (
+                        <option key={g.id} value={g.id}>{g.label} ({g.type === "office" ? "Office" : "Client"})</option>
+                      ))}
                   </select>
                 </div>
               </div>

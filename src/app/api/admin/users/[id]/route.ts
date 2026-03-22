@@ -19,6 +19,7 @@ const updateUserSchema = z.object({
   designation: z.string().optional(),
   department: z.string().optional(),
   workMode: z.enum(["office", "client", "hybrid"]).optional(),
+  assignedGeoFenceId: z.string().nullable().optional(),
   dateOfJoining: z.string().optional(),
   isActive: z.boolean().optional(),
   role: z.enum(["STAFF", "REVIEWER", "ADMIN", "SUPER_ADMIN"]).optional(),
@@ -112,6 +113,8 @@ export async function GET(
         dateOfJoining: true,
         isActive: true,
         workMode: true,
+        assignedGeoFenceId: true,
+        assignedGeoFence: { select: { id: true, label: true, type: true } },
         profilePhoto: true,
         companyId: true,
         createdAt: true,
@@ -183,9 +186,32 @@ export async function PUT(
       return errorResponse(msg || "Validation failed");
     }
 
-    const { password, role, email, employeeCode, dateOfJoining, ...rest } = parsed.data;
+    const { password, role, email, employeeCode, dateOfJoining, assignedGeoFenceId, ...rest } = parsed.data;
 
     const updateData: Record<string, unknown> = { ...rest };
+
+    if (assignedGeoFenceId !== undefined) {
+      if (assignedGeoFenceId === null) {
+        updateData.assignedGeoFenceId = null;
+      } else {
+        const targetFence = await prisma.geoFence.findFirst({
+          where: { id: assignedGeoFenceId, companyId: existing.companyId, isActive: true },
+          select: { id: true, type: true },
+        });
+        if (!targetFence) {
+          return errorResponse("Assigned geo-fence not found in this company", 404);
+        }
+
+        const effectiveWorkMode = (rest.workMode as string | undefined) ?? existing.workMode;
+        if (effectiveWorkMode === "office" && targetFence.type !== "office") {
+          return errorResponse("Office work mode can only be assigned to office geo-fence", 400);
+        }
+        if (effectiveWorkMode === "client" && targetFence.type !== "client_site") {
+          return errorResponse("Client work mode can only be assigned to client-site geo-fence", 400);
+        }
+        updateData.assignedGeoFenceId = assignedGeoFenceId;
+      }
+    }
 
     // Handle email change with uniqueness check
     if (email && email !== existing.email) {
@@ -236,6 +262,8 @@ export async function PUT(
         dateOfJoining: true,
         isActive: true,
         workMode: true,
+        assignedGeoFenceId: true,
+        assignedGeoFence: { select: { id: true, label: true, type: true } },
         profilePhoto: true,
         createdAt: true,
         featurePermissions: {
@@ -279,6 +307,8 @@ export async function PUT(
           dateOfJoining: true,
           isActive: true,
           workMode: true,
+          assignedGeoFenceId: true,
+          assignedGeoFence: { select: { id: true, label: true, type: true } },
           profilePhoto: true,
           createdAt: true,
           featurePermissions: {

@@ -8,12 +8,13 @@ import {
   parseBody,
 } from "@/lib/api-utils";
 import { determineLocationType } from "@/lib/geo";
-import { WFH_DISTANCE_THRESHOLD } from "@/lib/constants";
+import { WFH_DISTANCE_THRESHOLD, MAX_GPS_ACCURACY_M } from "@/lib/constants";
 import { LocationType, AttendanceStatus } from "@/generated/prisma/client";
 
 const checkInSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
+  accuracy: z.number().min(0).max(10000).optional(),
 });
 
 /**
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     const parsed = checkInSchema.safeParse(body);
     if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-    const { latitude, longitude } = parsed.data;
+    const { latitude, longitude, accuracy } = parsed.data;
     const userId = session.user.id;
 
     const today = new Date();
@@ -57,6 +58,16 @@ export async function POST(req: NextRequest) {
       select: { inTime: true, graceMinutes: true, lateThreshold: true },
     });
 
+    // Fetch user's attendance restrictions
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        workMode: true,
+        assignedGeoFenceId: true,
+      },
+    });
+    if (!user) return errorResponse("User not found", 404);
+
     // Fetch active geo-fences
     const geoFences = await prisma.geoFence.findMany({
       where: { companyId: session.user.companyId, isActive: true },
@@ -67,11 +78,38 @@ export async function POST(req: NextRequest) {
     const { locationType, nearestFenceId } = determineLocationType(
       latitude, longitude, geoFences, WFH_DISTANCE_THRESHOLD
     );
+
+    // Enforce strict geofence assignment if assigned by admin
+    if (user.assignedGeoFenceId) {
+      if (nearestFenceId !== user.assignedGeoFenceId || !["OFFICE", "CLIENT_SITE"].includes(locationType)) {
+        return errorResponse("Check-in denied: you are not at your assigned work location", 403);
+      }
+    } else {
+      // Fallback enforcement by work mode
+      if (user.workMode === "office" && locationType !== "OFFICE") {
+        return errorResponse("Check-in denied: office staff must check in from office geo-fence", 403);
+      }
+      if (user.workMode === "client" && locationType !== "CLIENT_SITE") {
+        return errorResponse("Check-in denied: client staff must check in from assigned client-site geo-fence", 403);
+      }
+      if (user.workMode === "hybrid" && !["OFFICE", "CLIENT_SITE"].includes(locationType)) {
+        return errorResponse("Check-in denied: hybrid staff must check in from office/client geo-fence", 403);
+      }
+    }
+
     const locationTypeEnum: LocationType = LocationType[locationType];
-    const status: AttendanceStatus =
+    let status: AttendanceStatus =
       locationType === "OFFICE" || locationType === "CLIENT_SITE"
         ? AttendanceStatus.AUTO_APPROVED
         : AttendanceStatus.PENDING_REVIEW;
+
+    let isSuspiciousLocation = false;
+    let suspiciousReason: string | null = null;
+    if (accuracy !== undefined && accuracy > MAX_GPS_ACCURACY_M) {
+      isSuspiciousLocation = true;
+      suspiciousReason = `Low GPS precision (${Math.round(accuracy)}m > ${MAX_GPS_ACCURACY_M}m threshold)`;
+      status = AttendanceStatus.FLAGGED;
+    }
 
     // === LATE ARRIVAL DETECTION ===
     const now = new Date();
@@ -117,10 +155,13 @@ export async function POST(req: NextRequest) {
         checkInTime: now,
         checkInLat: latitude,
         checkInLng: longitude,
+        checkInAccuracyM: accuracy,
         locationType: locationTypeEnum,
         geoFenceId: nearestFenceId,
         isWfh: locationType === "WORK_FROM_HOME",
         status,
+        isSuspiciousLocation,
+        suspiciousReason,
         isLate,
         lateByMinutes,
         isHalfDay,
@@ -130,7 +171,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    let message = "Checked in successfully";
+    let message = isSuspiciousLocation
+      ? `Checked in with warning: ${suspiciousReason}`
+      : "Checked in successfully";
     if (isHalfDay) {
       message = `Checked in — marked as HALF DAY (${lateByMinutes} min late, ${company!.lateThreshold}+ late arrivals this month)`;
     } else if (isLate) {

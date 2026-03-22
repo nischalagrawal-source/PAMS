@@ -23,6 +23,7 @@ const createUserSchema = z.object({
   department: z.string().optional(),
   dateOfJoining: z.string().optional(),
   workMode: z.enum(["office", "client", "hybrid"]).optional(),
+  assignedGeoFenceId: z.string().optional(),
   companyId: z.string().optional(),
   branchId: z.string().optional(),
 });
@@ -116,6 +117,8 @@ export async function GET(req: NextRequest) {
         dateOfJoining: true,
         isActive: true,
         workMode: true,
+        assignedGeoFenceId: true,
+        assignedGeoFence: { select: { id: true, label: true, type: true } },
         profilePhoto: true,
         createdAt: true,
         featurePermissions: {
@@ -175,6 +178,7 @@ export async function POST(req: NextRequest) {
       department,
       dateOfJoining,
       workMode,
+      assignedGeoFenceId,
       companyId: bodyCompanyId,
       branchId,
     } = parsed.data;
@@ -205,6 +209,22 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    if (assignedGeoFenceId) {
+      const assignedFence = await prisma.geoFence.findFirst({
+        where: { id: assignedGeoFenceId, companyId, isActive: true },
+        select: { id: true, type: true },
+      });
+      if (!assignedFence) {
+        return errorResponse("Assigned geo-fence not found in your company", 404);
+      }
+      if (workMode === "office" && assignedFence.type !== "office") {
+        return errorResponse("Office work mode can only be assigned to office geo-fence", 400);
+      }
+      if (workMode === "client" && assignedFence.type !== "client_site") {
+        return errorResponse("Client work mode can only be assigned to client-site geo-fence", 400);
+      }
+    }
+
     const defaultPerms = getDefaultPermissions(role);
 
     const user = await prisma.user.create({
@@ -222,6 +242,7 @@ export async function POST(req: NextRequest) {
         department,
         dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : undefined,
         workMode: workMode ?? "office",
+        assignedGeoFenceId: assignedGeoFenceId ?? undefined,
         featurePermissions: {
           create: defaultPerms,
         },
@@ -239,6 +260,8 @@ export async function POST(req: NextRequest) {
         dateOfJoining: true,
         isActive: true,
         workMode: true,
+        assignedGeoFenceId: true,
+        assignedGeoFence: { select: { id: true, label: true, type: true } },
         profilePhoto: true,
         createdAt: true,
         featurePermissions: {
