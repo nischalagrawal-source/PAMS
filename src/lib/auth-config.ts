@@ -2,7 +2,6 @@ import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "./db";
 import type { FeatureKey } from "./constants";
 import type { Permission } from "@/types";
@@ -17,16 +16,10 @@ export const authConfig: NextAuthConfig = {
         token: { label: "SSO Token", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.token) {
-          console.error("[SSO] Missing token in credentials payload");
-          return null;
-        }
+        if (!credentials?.token) return null;
         try {
           const secret = process.env.NRACO_JWT_SECRET;
-          if (!secret) {
-            console.error("[SSO] NRACO_JWT_SECRET is not set");
-            return null;
-          }
+          if (!secret) return null;
 
           // Verify the CA Website JWT — this ensures the token is authentic
           const payload = jwt.verify(credentials.token as string, secret) as {
@@ -35,16 +28,7 @@ export const authConfig: NextAuthConfig = {
             name: string;
             branch?: string;
           };
-          console.error("[SSO] Token verified", {
-            email: payload?.email,
-            role: payload?.role,
-            name: payload?.name,
-            branch: payload?.branch,
-          });
-          if (!payload?.email) {
-            console.error("[SSO] Token payload missing email");
-            return null;
-          }
+          if (!payload?.email) return null;
 
           // Map CA Website roles → PMS roles.
           // Partner/admin/superadmin should land with full PMS access.
@@ -58,26 +42,12 @@ export const authConfig: NextAuthConfig = {
             include: { company: { select: { name: true } }, featurePermissions: true },
           });
 
-          if (user) {
-            console.error("[SSO] Existing PMS user found", {
-              email: user.email,
-              role: user.role,
-              isActive: user.isActive,
-              companyId: user.companyId,
+          if (user && user.role !== pmsRole) {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { role: pmsRole as "SUPER_ADMIN" | "STAFF" },
+              include: { company: { select: { name: true } }, featurePermissions: true },
             });
-
-            if (user.role !== pmsRole) {
-              user = await prisma.user.update({
-                where: { id: user.id },
-                data: { role: pmsRole as "SUPER_ADMIN" | "STAFF" },
-                include: { company: { select: { name: true } }, featurePermissions: true },
-              });
-
-              console.error("[SSO] Updated PMS user role from SSO", {
-                email: user.email,
-                role: user.role,
-              });
-            }
           }
 
           if (!user) {
@@ -85,10 +55,7 @@ export const authConfig: NextAuthConfig = {
             const company = companyId
               ? await prisma.company.findUnique({ where: { id: companyId } })
               : await prisma.company.findFirst();
-            if (!company) {
-              console.error("[SSO] No company found for SSO user creation");
-              return null;
-            }
+            if (!company) return null;
 
             const parts = (payload.name || payload.email.split("@")[0]).trim().split(" ");
             const firstName = parts[0];
@@ -111,18 +78,9 @@ export const authConfig: NextAuthConfig = {
               include: { company: { select: { name: true } }, featurePermissions: true },
             });
 
-            console.error("[SSO] Created new PMS user", {
-              email: user.email,
-              role: user.role,
-              companyId: user.companyId,
-              employeeCode: user.employeeCode,
-            });
           }
 
-          if (!user.isActive) {
-            console.error("[SSO] PMS user exists but is inactive", { email: user.email });
-            return null;
-          }
+          if (!user.isActive) return null;
 
           const permissions: Record<string, Permission> = {};
           if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
@@ -137,12 +95,6 @@ export const authConfig: NextAuthConfig = {
             }
           }
 
-          console.error("[SSO] Authorize success", {
-            email: user.email,
-            role: user.role,
-            permissionCount: Object.keys(permissions).length,
-          });
-
           return {
             id: user.id,
             email: user.email,
@@ -156,18 +108,7 @@ export const authConfig: NextAuthConfig = {
             profilePhoto: user.profilePhoto,
             permissions: permissions as Record<FeatureKey, Permission>,
           };
-        } catch (e) {
-          if (e instanceof Prisma.PrismaClientKnownRequestError) {
-            console.error(
-              `[SSO] Prisma error code=${e.code} message=${e.message} meta=${JSON.stringify(e.meta ?? {})}`
-            );
-            return null;
-          }
-          if (e instanceof Prisma.PrismaClientValidationError) {
-            console.error(`[SSO] Prisma validation error: ${e.message}`);
-            return null;
-          }
-          console.error("[SSO] Token validation failed:", e);
+        } catch {
           return null;
         }
       },
