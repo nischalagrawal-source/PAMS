@@ -3,11 +3,17 @@
 import { signIn } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
+import jwt from "jsonwebtoken";
 
 export async function ssoLogin(token: string): Promise<{ error?: string }> {
   try {
     console.error("[SSO-ACTION] Starting signIn request", { tokenLength: token.length });
-    await signIn("sso-nraco", { token, redirectTo: "/" });
+    const decoded = jwt.decode(token) as { role?: string } | null;
+    const redirectTo = ["superadmin", "admin", "partner"].includes(decoded?.role || "")
+      ? "/admin/companies"
+      : "/";
+
+    await signIn("sso-nraco", { token, redirectTo });
     return {};
   } catch (e) {
     // NextAuth signIn throws NEXT_REDIRECT on success — re-throw it

@@ -46,9 +46,10 @@ export const authConfig: NextAuthConfig = {
             return null;
           }
 
-          // Map CA Website roles → PMS roles
+          // Map CA Website roles → PMS roles.
+          // Partner/admin/superadmin should land with full PMS access.
           const pmsRole = ["superadmin", "admin", "partner"].includes(payload.role)
-            ? "ADMIN"
+            ? "SUPER_ADMIN"
             : "STAFF";
 
           // Find existing PMS user or create on first SSO login
@@ -64,6 +65,19 @@ export const authConfig: NextAuthConfig = {
               isActive: user.isActive,
               companyId: user.companyId,
             });
+
+            if (user.role !== pmsRole) {
+              user = await prisma.user.update({
+                where: { id: user.id },
+                data: { role: pmsRole as "SUPER_ADMIN" | "STAFF" },
+                include: { company: { select: { name: true } }, featurePermissions: true },
+              });
+
+              console.error("[SSO] Updated PMS user role from SSO", {
+                email: user.email,
+                role: user.role,
+              });
+            }
           }
 
           if (!user) {
@@ -91,7 +105,7 @@ export const authConfig: NextAuthConfig = {
                 firstName,
                 lastName,
                 employeeCode,
-                role: pmsRole as "ADMIN" | "STAFF",
+                role: pmsRole as "SUPER_ADMIN" | "STAFF",
                 designation: payload.branch || "",
               },
               include: { company: { select: { name: true } }, featurePermissions: true },
