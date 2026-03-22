@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - master
+      - staging
   workflow_dispatch:
 
 concurrency:
-  group: production-deploy
+  group: deploy-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -16,13 +17,14 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Deploy on VPS over SSH
+      - name: Deploy production on VPS over SSH
+        if: github.ref == 'refs/heads/master'
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
+          host: ${{ secrets.PROD_VPS_HOST }}
+          username: ${{ secrets.PROD_VPS_USER }}
+          key: ${{ secrets.PROD_VPS_SSH_KEY }}
+          port: ${{ secrets.PROD_VPS_PORT }}
           script_stop: true
           script: |
             if [ ! -d "/var/www/pams/.git" ]; then
@@ -31,4 +33,102 @@ jobs:
             fi
 
             cd /var/www/pams
-            bash deploy/deploy.sh
+            bash deploy/deploy.sh master "${{ secrets.PROD_HEALTHCHECK_URL }}"
+
+      - name: Deploy staging on VPS over SSH
+        if: github.ref == 'refs/heads/staging'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_VPS_HOST }}
+          username: ${{ secrets.STAGING_VPS_USER }}
+          key: ${{ secrets.STAGING_VPS_SSH_KEY }}
+          port: ${{ secrets.STAGING_VPS_PORT }}
+          script_stop: true
+          script: |
+            if [ ! -d "/var/www/pams/.git" ]; then
+              echo "Missing /var/www/pams git checkout. Run initial VPS setup and first deploy once."
+              exit 1
+            fi
+
+            cd /var/www/pams
+            bash deploy/deploy.sh staging "${{ secrets.STAGING_HEALTHCHECK_URL }}"
+
+      - name: Notify Slack (production)
+        if: always() && github.ref == 'refs/heads/master'
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL_PROD }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK" ]; then
+            echo "Slack webhook not configured for production; skipping"
+            exit 0
+          fi
+
+          STATUS="${{ job.status }}"
+          REPO="${{ github.repository }}"
+          SHA="${{ github.sha }}"
+          BRANCH="${{ github.ref_name }}"
+          URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"[P&AMS][PROD] Deploy ${STATUS} | ${REPO}@${BRANCH} | ${SHA} | ${URL}\"}" \
+            "$SLACK_WEBHOOK"
+
+      - name: Notify Slack (staging)
+        if: always() && github.ref == 'refs/heads/staging'
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL_STAGING }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK" ]; then
+            echo "Slack webhook not configured for staging; skipping"
+            exit 0
+          fi
+
+          STATUS="${{ job.status }}"
+          REPO="${{ github.repository }}"
+          SHA="${{ github.sha }}"
+          BRANCH="${{ github.ref_name }}"
+          URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"[P&AMS][STAGING] Deploy ${STATUS} | ${REPO}@${BRANCH} | ${SHA} | ${URL}\"}" \
+            "$SLACK_WEBHOOK"
+
+      - name: Notify WhatsApp (production)
+        if: always() && github.ref == 'refs/heads/master'
+        env:
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_TO_NUMBER: ${{ secrets.WHATSAPP_TO_NUMBER_PROD }}
+        run: |
+          if [ -z "$WHATSAPP_ACCESS_TOKEN" ] || [ -z "$WHATSAPP_PHONE_NUMBER_ID" ] || [ -z "$WHATSAPP_TO_NUMBER" ]; then
+            echo "WhatsApp secrets not configured for production; skipping"
+            exit 0
+          fi
+
+          STATUS="${{ job.status }}"
+          MSG="P&AMS PROD deploy ${STATUS}. Repo: ${{ github.repository }}, Branch: ${{ github.ref_name }}, SHA: ${{ github.sha }}"
+
+          curl -X POST "https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages" \
+            -H "Authorization: Bearer ${WHATSAPP_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"messaging_product\":\"whatsapp\",\"to\":\"${WHATSAPP_TO_NUMBER}\",\"type\":\"text\",\"text\":{\"body\":\"${MSG}\"}}"
+
+      - name: Notify WhatsApp (staging)
+        if: always() && github.ref == 'refs/heads/staging'
+        env:
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_TO_NUMBER: ${{ secrets.WHATSAPP_TO_NUMBER_STAGING }}
+        run: |
+          if [ -z "$WHATSAPP_ACCESS_TOKEN" ] || [ -z "$WHATSAPP_PHONE_NUMBER_ID" ] || [ -z "$WHATSAPP_TO_NUMBER" ]; then
+            echo "WhatsApp secrets not configured for staging; skipping"
+            exit 0
+          fi
+
+          STATUS="${{ job.status }}"
+          MSG="P&AMS STAGING deploy ${STATUS}. Repo: ${{ github.repository }}, Branch: ${{ github.ref_name }}, SHA: ${{ github.sha }}"
+
+          curl -X POST "https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages" \
+            -H "Authorization: Bearer ${WHATSAPP_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"messaging_product\":\"whatsapp\",\"to\":\"${WHATSAPP_TO_NUMBER}\",\"type\":\"text\",\"text\":{\"body\":\"${MSG}\"}}"

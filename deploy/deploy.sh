@@ -1,62 +1,132 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════
-# P&AMS Deploy Script — Run this to deploy/update
-# Usage: ssh root@YOUR_VPS_IP 'bash -s' < deploy/deploy.sh
-# Or from the VPS: cd /var/www/pams && bash deploy/deploy.sh
-# ═══════════════════════════════════════════════════════
+# ======================================================
+# P&AMS Deploy Script - Run this to deploy/update
+# Usage:
+#   cd /var/www/pams && bash deploy/deploy.sh [branch] [healthcheck_url]
+# Examples:
+#   bash deploy/deploy.sh master "https://app.example.com/api/health"
+#   bash deploy/deploy.sh staging "https://staging.example.com/api/health"
+# ======================================================
 
-set -e
+set -Eeuo pipefail
 
 APP_DIR="/var/www/pams"
+TARGET_BRANCH="${1:-master}"
+HEALTHCHECK_URL="${2:-}"
+PREVIOUS_COMMIT=""
 
-echo "╔══════════════════════════════════════════╗"
-echo "║  P&AMS Deploy                              ║"
-echo "╚══════════════════════════════════════════╝"
+run_schema_sync() {
+  if npx prisma db push --skip-generate; then
+    echo "-> Schema synced with --skip-generate"
+  else
+    echo "-> --skip-generate not supported, retrying without it..."
+    npx prisma db push
+  fi
+}
 
-cd $APP_DIR
+health_check() {
+  if [ -z "$HEALTHCHECK_URL" ]; then
+    echo "-> No healthcheck URL provided, skipping health check"
+    return 0
+  fi
 
-# 1. Pull latest code
-echo "→ Pulling latest code..."
-git pull origin master
+  echo "-> Running health check: $HEALTHCHECK_URL"
+  local http_code
+  http_code="$(curl --silent --show-error --location --max-time 15 --output /dev/null --write-out "%{http_code}" "$HEALTHCHECK_URL")"
 
-# 2. Install dependencies
-echo "→ Installing dependencies..."
+  if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
+    echo "-> Health check passed with HTTP $http_code"
+    return 0
+  fi
+
+  echo "-> Health check failed with HTTP $http_code"
+  return 1
+}
+
+rollback() {
+  set +e
+  trap - ERR
+
+  echo ""
+  echo "[ROLLBACK] Deployment failed. Reverting to commit: $PREVIOUS_COMMIT"
+
+  if [ -z "$PREVIOUS_COMMIT" ]; then
+    echo "[ROLLBACK] Previous commit unknown. Cannot auto-rollback safely."
+    exit 1
+  fi
+
+  cd "$APP_DIR" || exit 1
+  git reset --hard "$PREVIOUS_COMMIT" || exit 1
+
+  echo "[ROLLBACK] Reinstalling dependencies..."
+  npm ci --production=false || exit 1
+
+  echo "[ROLLBACK] Syncing schema..."
+  run_schema_sync || exit 1
+
+  echo "[ROLLBACK] Regenerating Prisma client..."
+  npx prisma generate || exit 1
+
+  echo "[ROLLBACK] Rebuilding app..."
+  rm -rf .next
+  npm run build || exit 1
+
+  echo "[ROLLBACK] Restarting app..."
+  pm2 restart pams || pm2 start ecosystem.config.js || exit 1
+  pm2 save || true
+
+  if ! health_check; then
+    echo "[ROLLBACK] Health check failed even after rollback"
+    exit 1
+  fi
+
+  echo "[ROLLBACK] Rollback succeeded"
+  exit 1
+}
+
+trap rollback ERR
+
+echo "======================================================"
+echo " P&AMS Deploy"
+echo " Branch: $TARGET_BRANCH"
+echo "======================================================"
+
+cd "$APP_DIR"
+PREVIOUS_COMMIT="$(git rev-parse HEAD)"
+
+echo "-> Fetching latest code..."
+git fetch origin "$TARGET_BRANCH"
+git checkout "$TARGET_BRANCH"
+git reset --hard "origin/$TARGET_BRANCH"
+
+echo "-> Installing dependencies..."
 npm ci --production=false
 
-# 3. Sync database schema (required when models change)
-echo "→ Syncing database schema..."
-if npx prisma db push --skip-generate; then
-	echo "→ Schema synced with --skip-generate"
-else
-	echo "→ --skip-generate not supported, retrying without it..."
-	npx prisma db push
-fi
+echo "-> Syncing database schema..."
+run_schema_sync
 
-# 4. Generate Prisma client (must be after db push for fresh types)
-echo "→ Generating Prisma client..."
+echo "-> Generating Prisma client..."
 npx prisma generate
 
-# 5. Clean .next cache for fresh build
-echo "→ Cleaning .next cache..."
+echo "-> Cleaning .next cache..."
 rm -rf .next
 
-# 6. Build Next.js for production
-echo "→ Building for production..."
+echo "-> Building for production..."
 npm run build
 
-# 7. Restart PM2
-echo "→ Restarting app..."
+echo "-> Restarting app..."
 pm2 restart pams || pm2 start ecosystem.config.js
-
-# 8. Save PM2 config (survives reboot)
 pm2 save
 pm2 startup systemd -u root --hp /root 2>/dev/null || true
 
+health_check
+
+trap - ERR
+
 echo ""
-echo "╔══════════════════════════════════════════╗"
-echo "║  Deploy Complete!                          ║"
-echo "╚══════════════════════════════════════════╝"
-echo ""
+echo "======================================================"
+echo " Deploy Complete"
+echo "======================================================"
 echo "App running at: http://localhost:3000"
 echo "Check status: pm2 status"
 echo "View logs: pm2 logs pams"

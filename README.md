@@ -111,21 +111,49 @@ prisma/
 
 ## Automatic Deployment (GitHub Actions)
 
-This repository is configured to auto-deploy on every push to the `master` branch via `.github/workflows/auto-deploy.yml`.
+This repository auto-deploys on push via `.github/workflows/auto-deploy.yml`:
+
+- `staging` branch -> staging VPS deploy
+- `master` branch -> production VPS deploy
 
 ### One-time setup in GitHub
 
 1. Open your repository on GitHub.
-2. Go to **Settings -> Secrets and variables -> Actions -> New repository secret**.
-3. Create these secrets:
-   - `VPS_HOST`: VPS public IP or hostname
-   - `VPS_USER`: SSH user (for example `root`)
-   - `VPS_PORT`: SSH port (usually `22`)
-   - `VPS_SSH_KEY`: private SSH key content used for VPS login
+2. Go to **Settings -> Secrets and variables -> Actions**.
+3. Click **New repository secret** for each value below.
 
-### Required server state
+### Required secrets for production
 
-- The VPS must have the app at `/var/www/pams` and `deploy/deploy.sh` available.
-- Your deploy user must have permissions to run the deploy script and restart PM2.
+- `PROD_VPS_HOST`: production VPS public IP or hostname
+- `PROD_VPS_USER`: production SSH user (for example `root`)
+- `PROD_VPS_PORT`: production SSH port (usually `22`)
+- `PROD_VPS_SSH_KEY`: private SSH key content for production VPS
+- `PROD_HEALTHCHECK_URL`: production health URL
 
-After this one-time setup, every push to `master` will automatically deploy.
+### Required secrets for staging
+
+- `STAGING_VPS_HOST`: staging VPS public IP or hostname
+- `STAGING_VPS_USER`: staging SSH user
+- `STAGING_VPS_PORT`: staging SSH port
+- `STAGING_VPS_SSH_KEY`: private SSH key content for staging VPS
+- `STAGING_HEALTHCHECK_URL`: staging health URL
+
+### Optional notification secrets
+
+Slack:
+- `SLACK_WEBHOOK_URL_PROD`
+- `SLACK_WEBHOOK_URL_STAGING`
+
+WhatsApp Cloud API:
+- `WHATSAPP_ACCESS_TOKEN`
+- `WHATSAPP_PHONE_NUMBER_ID`
+- `WHATSAPP_TO_NUMBER_PROD`
+- `WHATSAPP_TO_NUMBER_STAGING`
+
+### Safety behavior included
+
+- Automatic rollback on deploy failure.
+- Automatic rollback if post-deploy health check fails.
+- Rollback rebuilds and restarts PM2 to recover the previous working commit.
+
+After this one-time setup, pushes to `staging` and `master` deploy automatically.
