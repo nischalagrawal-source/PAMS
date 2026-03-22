@@ -28,6 +28,8 @@ import {
   useUpdateSlip,
   useOfferTemplates,
   useGenerateOfferLetter,
+  useSeedOfferTemplates,
+  useUpdateOfferLetter,
   type OfferLetterInput,
   type SalarySlip,
 } from "@/hooks/use-salary";
@@ -64,6 +66,8 @@ export default function SalaryPage() {
   const [showOfferGen, setShowOfferGen] = useState(false);
   const [offerUserId, setOfferUserId] = useState("");
   const [offerTemplateId, setOfferTemplateId] = useState("");
+  const [generatedOfferId, setGeneratedOfferId] = useState("");
+  const [offerDraftContent, setOfferDraftContent] = useState("");
   const [offerForm, setOfferForm] = useState<OfferLetterInput>({
     positionTitle: "",
     annualCtc: undefined,
@@ -106,6 +110,8 @@ export default function SalaryPage() {
   const updateSlipMutation = useUpdateSlip();
   const templatesQuery = useOfferTemplates();
   const offerMutation = useGenerateOfferLetter();
+  const seedTemplatesMutation = useSeedOfferTemplates();
+  const updateOfferMutation = useUpdateOfferLetter();
 
   const usersQuery = useQuery({
     queryKey: ["users", "all"],
@@ -139,10 +145,22 @@ export default function SalaryPage() {
     if (!offerUserId) return;
     offerMutation.mutate({ userId: offerUserId, templateId: offerTemplateId || undefined, offerData: offerForm }, {
       onSuccess: (data) => {
+        setGeneratedOfferId(data.id);
         setGeneratedOfferContent(data.content);
+        setOfferDraftContent(data.content);
         setShowOfferGen(false);
         setOfferUserId("");
         setOfferTemplateId("");
+      },
+    });
+  }
+
+  function handleSaveOfferEdit() {
+    if (!generatedOfferId || !offerDraftContent.trim()) return;
+    updateOfferMutation.mutate({ id: generatedOfferId, content: offerDraftContent }, {
+      onSuccess: (data) => {
+        setGeneratedOfferContent(data.content);
+        setOfferDraftContent(data.content);
       },
     });
   }
@@ -255,6 +273,16 @@ export default function SalaryPage() {
                   <option value="">Auto (default template)</option>
                   {templatesQuery.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => seedTemplatesMutation.mutate()}
+                    disabled={seedTemplatesMutation.isPending}
+                    className="rounded-lg border border-cyan-300 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:border-cyan-800 dark:text-cyan-400 dark:hover:bg-cyan-950"
+                  >
+                    {seedTemplatesMutation.isPending ? "Installing..." : "Install 2 Standard Templates"}
+                  </button>
+                </div>
                 <p className="mt-1 text-xs text-gray-500">Use placeholders like {"{{positionTitle}}"}, {"{{workingDays}}"}, {"{{responsibilitiesList}}"}, {"{{kycList}}"}.</p>
               </div>
 
@@ -414,9 +442,23 @@ export default function SalaryPage() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generated Offer Letter</h3>
               <button onClick={() => setGeneratedOfferContent("")} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} /></button>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" dangerouslySetInnerHTML={{ __html: generatedOfferContent }} />
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Fail-safe final edit (HTML supported)</label>
+                <textarea
+                  value={offerDraftContent}
+                  onChange={(e) => setOfferDraftContent(e.target.value)}
+                  rows={12}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" dangerouslySetInnerHTML={{ __html: offerDraftContent }} />
+            </div>
             <div className="mt-4 flex justify-end gap-3">
-              <button onClick={() => navigator.clipboard.writeText(generatedOfferContent)} className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300">Copy HTML</button>
+              <button onClick={handleSaveOfferEdit} disabled={!generatedOfferId || updateOfferMutation.isPending} className="rounded-xl border border-cyan-300 px-4 py-2.5 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:border-cyan-800 dark:text-cyan-400 dark:hover:bg-cyan-950">
+                {updateOfferMutation.isPending ? "Saving..." : "Save Final Edit"}
+              </button>
+              <button onClick={() => navigator.clipboard.writeText(offerDraftContent)} className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300">Copy HTML</button>
               <button onClick={() => window.print()} className="rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-500">Print</button>
             </div>
           </div>

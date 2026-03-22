@@ -232,3 +232,35 @@ export function useGenerateOfferLetter() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["salary"] }),
   });
 }
+
+export function useSeedOfferTemplates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/salary/offer-letters/seed-defaults", {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data as OfferLetterTemplate[];
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["salary", "offer-templates"] }),
+  });
+}
+
+export function useUpdateOfferLetter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { id: string; content: string }) => {
+      const res = await fetch(`/api/salary/offer-letters/${data.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: data.content }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data as OfferLetter;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["salary"] }),
+  });
+}
