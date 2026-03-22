@@ -31,8 +31,11 @@ export const authConfig: NextAuthConfig = {
           if (!payload?.email) return null;
 
           // Map CA Website roles → PMS roles.
-          // NRACO admins become company-scoped ADMIN (not global SUPER_ADMIN).
-          const pmsRole = ["superadmin", "admin", "partner"].includes(payload.role)
+          // NRACO superadmin → SUPER_ADMIN (global)
+          // NRACO admin/partner → ADMIN (company-scoped)
+          const pmsRole = payload.role === "superadmin"
+            ? "SUPER_ADMIN"
+            : ["admin", "partner"].includes(payload.role)
             ? "ADMIN"
             : "STAFF";
 
@@ -45,7 +48,7 @@ export const authConfig: NextAuthConfig = {
           if (user && user.role !== pmsRole) {
             user = await prisma.user.update({
               where: { id: user.id },
-              data: { role: pmsRole as "ADMIN" | "STAFF" },
+              data: { role: pmsRole as "SUPER_ADMIN" | "ADMIN" | "STAFF" },
               include: { company: { select: { name: true } }, branch: { select: { name: true } }, featurePermissions: true },
             });
           }
@@ -72,7 +75,7 @@ export const authConfig: NextAuthConfig = {
                 firstName,
                 lastName,
                 employeeCode,
-                role: pmsRole as "ADMIN" | "STAFF",
+                role: pmsRole as "SUPER_ADMIN" | "ADMIN" | "STAFF",
                 designation: payload.branch || "",
               },
               include: { company: { select: { name: true } }, branch: { select: { name: true } }, featurePermissions: true },
