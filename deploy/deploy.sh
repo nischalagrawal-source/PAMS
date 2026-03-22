@@ -27,9 +27,10 @@ npm ci --production=false
 echo "→ Generating Prisma client..."
 npx prisma generate
 
-# 4. Push schema changes (if any)
-echo "→ Syncing database schema..."
-npx prisma db push --accept-data-loss
+# 4. Push schema changes only if DATABASE_URL is explicitly set
+# Skip on regular deploys — Nhost manages the DB schema separately.
+# To manually sync schema run: DATABASE_URL=... npx prisma db push
+echo "→ Skipping prisma db push (schema is managed by Nhost)"
 
 # 5. Build Next.js for production
 echo "→ Building for production..."
