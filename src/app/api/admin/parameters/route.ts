@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import {
   getSessionOrFail,
   checkPermission,
+  getUserScopeFilter,
   errorResponse,
   successResponse,
   parseBody,
@@ -31,10 +32,10 @@ export async function GET() {
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session.user.companyId;
+    const scopeFilter = getUserScopeFilter(session);
 
     const parameters = await prisma.perfParameter.findMany({
-      where: { companyId },
+      where: scopeFilter,
       orderBy: { sortOrder: "asc" },
     });
 

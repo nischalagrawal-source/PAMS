@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import {
   getSessionOrFail,
   checkPermission,
+  getUserScopeFilter,
   errorResponse,
   successResponse,
   parseBody,
@@ -36,10 +37,10 @@ export async function PUT(
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session.user.companyId;
+    const scopeFilter = getUserScopeFilter(session);
 
     const existing = await prisma.perfParameter.findFirst({
-      where: { id, companyId },
+      where: { id, ...scopeFilter },
     });
 
     if (!existing) {
@@ -86,10 +87,10 @@ export async function DELETE(
       return errorResponse("Forbidden", 403);
     }
 
-    const companyId = session.user.companyId;
+    const scopeFilter = getUserScopeFilter(session);
 
     const existing = await prisma.perfParameter.findFirst({
-      where: { id, companyId },
+      where: { id, ...scopeFilter },
     });
 
     if (!existing) {
