@@ -16,7 +16,10 @@ export const authConfig: NextAuthConfig = {
         token: { label: "SSO Token", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.token) return null;
+        if (!credentials?.token) {
+          console.error("[SSO] Missing token in credentials payload");
+          return null;
+        }
         try {
           const secret = process.env.NRACO_JWT_SECRET;
           if (!secret) {
@@ -31,7 +34,16 @@ export const authConfig: NextAuthConfig = {
             name: string;
             branch?: string;
           };
-          if (!payload?.email) return null;
+          console.error("[SSO] Token verified", {
+            email: payload?.email,
+            role: payload?.role,
+            name: payload?.name,
+            branch: payload?.branch,
+          });
+          if (!payload?.email) {
+            console.error("[SSO] Token payload missing email");
+            return null;
+          }
 
           // Map CA Website roles → PMS roles
           const pmsRole = ["superadmin", "admin", "partner"].includes(payload.role)
@@ -43,6 +55,15 @@ export const authConfig: NextAuthConfig = {
             where: { email: payload.email },
             include: { company: { select: { name: true } }, featurePermissions: true },
           });
+
+          if (user) {
+            console.error("[SSO] Existing PMS user found", {
+              email: user.email,
+              role: user.role,
+              isActive: user.isActive,
+              companyId: user.companyId,
+            });
+          }
 
           if (!user) {
             const companyId = process.env.NRACO_COMPANY_ID;
@@ -74,9 +95,19 @@ export const authConfig: NextAuthConfig = {
               },
               include: { company: { select: { name: true } }, featurePermissions: true },
             });
+
+            console.error("[SSO] Created new PMS user", {
+              email: user.email,
+              role: user.role,
+              companyId: user.companyId,
+              employeeCode: user.employeeCode,
+            });
           }
 
-          if (!user.isActive) return null;
+          if (!user.isActive) {
+            console.error("[SSO] PMS user exists but is inactive", { email: user.email });
+            return null;
+          }
 
           const permissions: Record<string, Permission> = {};
           if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
@@ -90,6 +121,12 @@ export const authConfig: NextAuthConfig = {
               };
             }
           }
+
+          console.error("[SSO] Authorize success", {
+            email: user.email,
+            role: user.role,
+            permissionCount: Object.keys(permissions).length,
+          });
 
           return {
             id: user.id,
