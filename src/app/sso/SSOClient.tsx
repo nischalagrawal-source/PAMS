@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { ssoLogin } from "./actions";
 
 export default function SSOClient() {
   const searchParams = useSearchParams();
@@ -17,11 +17,12 @@ export default function SSOClient() {
       return;
     }
 
-    signIn("sso-nraco", { token, redirect: false }).then((result) => {
+    ssoLogin(token).then((result: { error?: string }) => {
       if (result?.error) {
-        setError("SSO authentication failed. Please contact your administrator.");
+        setError(result.error);
       } else {
-        router.replace(result?.url || "/");
+        router.replace("/");
+        router.refresh();
       }
     });
   }, [searchParams, router]);
