@@ -65,18 +65,37 @@ export default function SalaryPage() {
   const [offerUserId, setOfferUserId] = useState("");
   const [offerTemplateId, setOfferTemplateId] = useState("");
   const [offerForm, setOfferForm] = useState<OfferLetterInput>({
+    positionTitle: "",
     annualCtc: undefined,
     monthlyGross: undefined,
+    currentSalary: undefined,
+    revisedSalary: undefined,
+    revisedSalaryEffectiveFrom: "",
     probationPeriodMonths: 6,
     securityDeposit: 0,
+    leaveEntitlementAnnual: 12,
+    festivalLeavesPerYear: 13,
+    workingDays: "Monday to Friday & every 1st/3rd/5th Saturday",
+    workingHours: "9:30 AM to 5:30 PM",
+    lateArrivalGraceCount: 3,
+    lateArrivalCutoff: "9:45 AM",
     joiningDate: "",
     issueDate: new Date().toISOString().slice(0, 10),
     jobLocation: "",
     reportingManager: "",
+    hrEmail: "nischal@nragroup.in",
+    emergencyWhatsapp: "9930007074",
+    minCommitmentUntil: "",
+    noticePeriodMonths: 1,
     panNumber: "",
     bankName: "",
     bankAccountNumber: "",
     ifscCode: "",
+    confidentialityClause: "",
+    conflictOfInterestClause: "",
+    legalRecourseClause: "",
+    responsibilitiesText: "",
+    kycDocumentsText: "",
     specialTerms: "",
   });
   const [generatedOfferContent, setGeneratedOfferContent] = useState("");
@@ -236,10 +255,14 @@ export default function SalaryPage() {
                   <option value="">Auto (default template)</option>
                   {templatesQuery.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <p className="mt-1 text-xs text-gray-500">Use placeholders like {"{{employeeName}}"}, {"{{annualCtc}}"}, {"{{panNumber}}"}, {"{{bankName}}"}, {"{{securityDeposit}}"}.</p>
+                <p className="mt-1 text-xs text-gray-500">Use placeholders like {"{{positionTitle}}"}, {"{{workingDays}}"}, {"{{responsibilitiesList}}"}, {"{{kycList}}"}.</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Position Title</label>
+                  <input type="text" value={offerForm.positionTitle || ""} onChange={(e) => setOfferForm((p) => ({ ...p, positionTitle: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. Semi-Qualified Assistant" />
+                </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Annual CTC</label>
                   <input type="number" min="0" value={offerForm.annualCtc ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, annualCtc: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 600000" />
@@ -247,6 +270,18 @@ export default function SalaryPage() {
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Gross</label>
                   <input type="number" min="0" value={offerForm.monthlyGross ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, monthlyGross: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 50000" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Current Salary</label>
+                  <input type="number" min="0" value={offerForm.currentSalary ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, currentSalary: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 46000" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Revised Salary</label>
+                  <input type="number" min="0" value={offerForm.revisedSalary ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, revisedSalary: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 50000" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Revised Salary Effective Date</label>
+                  <input type="date" value={offerForm.revisedSalaryEffectiveFrom || ""} onChange={(e) => setOfferForm((p) => ({ ...p, revisedSalaryEffectiveFrom: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Probation (months)</label>
@@ -288,6 +323,71 @@ export default function SalaryPage() {
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">IFSC Code</label>
                   <input type="text" value={offerForm.ifscCode || ""} onChange={(e) => setOfferForm((p) => ({ ...p, ifscCode: e.target.value.toUpperCase() }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="IFSC code" />
                 </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Leave Entitlement (annual)</label>
+                  <input type="number" min="0" value={offerForm.leaveEntitlementAnnual ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, leaveEntitlementAnnual: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 12" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Festival Leaves Per Year</label>
+                  <input type="number" min="0" value={offerForm.festivalLeavesPerYear ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, festivalLeavesPerYear: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 13" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Working Days</label>
+                  <input type="text" value={offerForm.workingDays || ""} onChange={(e) => setOfferForm((p) => ({ ...p, workingDays: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Days policy" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Working Hours</label>
+                  <input type="text" value={offerForm.workingHours || ""} onChange={(e) => setOfferForm((p) => ({ ...p, workingHours: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 9:30 AM to 5:30 PM" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Allowed Late Arrivals</label>
+                  <input type="number" min="0" value={offerForm.lateArrivalGraceCount ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, lateArrivalGraceCount: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 3" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Late Arrival Cutoff</label>
+                  <input type="text" value={offerForm.lateArrivalCutoff || ""} onChange={(e) => setOfferForm((p) => ({ ...p, lateArrivalCutoff: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 9:45 AM" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">HR Email</label>
+                  <input type="email" value={offerForm.hrEmail || ""} onChange={(e) => setOfferForm((p) => ({ ...p, hrEmail: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="hr/company email" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Emergency WhatsApp</label>
+                  <input type="text" value={offerForm.emergencyWhatsapp || ""} onChange={(e) => setOfferForm((p) => ({ ...p, emergencyWhatsapp: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="contact number" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Notice Period (months)</label>
+                  <input type="number" min="0" value={offerForm.noticePeriodMonths ?? ""} onChange={(e) => setOfferForm((p) => ({ ...p, noticePeriodMonths: e.target.value ? Number(e.target.value) : undefined }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. 1" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Minimum Commitment Until</label>
+                  <input type="text" value={offerForm.minCommitmentUntil || ""} onChange={(e) => setOfferForm((p) => ({ ...p, minCommitmentUntil: e.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="e.g. January 2028" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Responsibilities (one line each)</label>
+                <textarea value={offerForm.responsibilitiesText || ""} onChange={(e) => setOfferForm((p) => ({ ...p, responsibilitiesText: e.target.value }))} rows={4} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Managing and executing audits&#10;Direct and indirect tax compliance&#10;Bank and PSU audits" />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">KYC Documents (one line each)</label>
+                <textarea value={offerForm.kycDocumentsText || ""} onChange={(e) => setOfferForm((p) => ({ ...p, kycDocumentsText: e.target.value }))} rows={4} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="PAN Card copy&#10;Aadhaar Card copy&#10;Cancelled cheque" />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Conflict Of Interest Clause</label>
+                <textarea value={offerForm.conflictOfInterestClause || ""} onChange={(e) => setOfferForm((p) => ({ ...p, conflictOfInterestClause: e.target.value }))} rows={3} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Conflict declaration text..." />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Confidentiality Clause</label>
+                <textarea value={offerForm.confidentialityClause || ""} onChange={(e) => setOfferForm((p) => ({ ...p, confidentialityClause: e.target.value }))} rows={3} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Confidentiality clause text..." />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Legal Recourse Clause</label>
+                <textarea value={offerForm.legalRecourseClause || ""} onChange={(e) => setOfferForm((p) => ({ ...p, legalRecourseClause: e.target.value }))} rows={3} className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Legal recourse text..." />
               </div>
 
               <div>

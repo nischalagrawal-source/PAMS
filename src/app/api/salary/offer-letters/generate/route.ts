@@ -14,18 +14,37 @@ const generateOfferSchema = z.object({
   userId: z.string().min(1, "userId is required"),
   templateId: z.string().min(1).optional(),
   offerData: z.object({
+    positionTitle: z.string().optional(),
     annualCtc: z.number().min(0).optional(),
     monthlyGross: z.number().min(0).optional(),
+    currentSalary: z.number().min(0).optional(),
+    revisedSalary: z.number().min(0).optional(),
+    revisedSalaryEffectiveFrom: z.string().optional(),
     probationPeriodMonths: z.number().int().min(0).optional(),
     securityDeposit: z.number().min(0).optional(),
+    leaveEntitlementAnnual: z.number().int().min(0).optional(),
+    festivalLeavesPerYear: z.number().int().min(0).optional(),
+    workingDays: z.string().optional(),
+    workingHours: z.string().optional(),
+    lateArrivalGraceCount: z.number().int().min(0).optional(),
+    lateArrivalCutoff: z.string().optional(),
     joiningDate: z.string().optional(),
     issueDate: z.string().optional(),
     jobLocation: z.string().optional(),
     reportingManager: z.string().optional(),
+    hrEmail: z.string().optional(),
+    emergencyWhatsapp: z.string().optional(),
+    minCommitmentUntil: z.string().optional(),
+    noticePeriodMonths: z.number().int().min(0).optional(),
     panNumber: z.string().optional(),
     bankName: z.string().optional(),
     bankAccountNumber: z.string().optional(),
     ifscCode: z.string().optional(),
+    confidentialityClause: z.string().optional(),
+    conflictOfInterestClause: z.string().optional(),
+    legalRecourseClause: z.string().optional(),
+    responsibilitiesText: z.string().optional(),
+    kycDocumentsText: z.string().optional(),
     specialTerms: z.string().optional(),
   }).optional(),
 });
@@ -59,7 +78,7 @@ function getDefaultOfferTemplate() {
 <p>Dear {{firstName}},</p>
 
 <p>
-We are pleased to offer you the position of <strong>{{designation}}</strong> in
+We are pleased to offer you the position of <strong>{{positionTitle}}</strong> in
 <strong>{{department}}</strong> at <strong>{{companyName}}</strong>.
 </p>
 
@@ -73,10 +92,39 @@ work will be <strong>{{jobLocation}}</strong>. You will report to
 Your compensation details are as follows:
 </p>
 <ul>
+  <li>Current Salary: {{currentSalary}}</li>
+  <li>Revised Salary: {{revisedSalary}} (effective from {{revisedSalaryEffectiveFrom}})</li>
   <li>Annual CTC: {{annualCtc}}</li>
   <li>Monthly Gross Salary: {{monthlyGross}}</li>
   <li>Probation Period: {{probationPeriodMonths}} months</li>
   <li>Security Deposit: {{securityDeposit}}</li>
+</ul>
+
+<p>
+Leave Policy:
+</p>
+<ul>
+  <li>Paid Leave Entitlement: {{leaveEntitlementAnnual}} per annum (proportionate basis)</li>
+  <li>Festival Leaves: {{festivalLeavesPerYear}} per year</li>
+  <li>Planned leave application email: {{hrEmail}}</li>
+  <li>Emergency leave contact (WhatsApp): {{emergencyWhatsapp}}</li>
+  <li>Sandwich leave policy applies as per company rules</li>
+</ul>
+
+<p>
+Attendance Policy:
+</p>
+<ul>
+  <li>Working Days: {{workingDays}}</li>
+  <li>Working Hours: {{workingHours}}</li>
+  <li>Late Arrival Rule: Up to {{lateArrivalGraceCount}} late arrivals allowed till {{lateArrivalCutoff}}; subsequent late arrival may be treated as half day</li>
+</ul>
+
+<p>
+Responsibilities:
+</p>
+<ul>
+  {{responsibilitiesList}}
 </ul>
 
 <p>
@@ -88,6 +136,33 @@ For payroll compliance, your details are recorded as:
   <li>Account Number: {{bankAccountNumber}}</li>
   <li>IFSC: {{ifscCode}}</li>
 </ul>
+
+<p>
+KYC Documentation required at acceptance:
+</p>
+<ul>
+  {{kycList}}
+</ul>
+
+<p>
+Conflict of Interest Declaration:<br/>
+{{conflictOfInterestClause}}
+</p>
+
+<p>
+Confidentiality Clause:<br/>
+{{confidentialityClause}}
+</p>
+
+<p>
+Legal Recourse Clause:<br/>
+{{legalRecourseClause}}
+</p>
+
+<p>
+Minimum Commitment: {{minCommitmentUntil}}<br/>
+Notice Period: {{noticePeriodMonths}} month(s)
+</p>
 
 <p>
 Additional Terms:<br/>
@@ -103,6 +178,14 @@ For {{companyName}}<br/>
 Authorized Signatory
 </p>
 `;
+}
+
+function toListItems(raw?: string, fallback?: string[]) {
+  const list = raw
+    ? raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+    : (fallback || []);
+  if (!list.length) return "<li>N/A</li>";
+  return list.map((item) => `<li>${item}</li>`).join("\n");
 }
 
 // ── POST /api/salary/offer-letters/generate ───────────────────
@@ -168,6 +251,7 @@ export async function POST(req: NextRequest) {
       firstName: user.firstName,
       lastName: user.lastName,
       employeeName: `${user.firstName} ${user.lastName}`,
+      positionTitle: offerData?.positionTitle || user.designation || "N/A",
       designation: user.designation || "N/A",
       department: user.department || "N/A",
       dateOfJoining: formatDate(user.dateOfJoining),
@@ -175,16 +259,43 @@ export async function POST(req: NextRequest) {
       companyName: user.company.name,
       date: formatDate(now),
       issueDate: offerData?.issueDate ? formatDate(offerData.issueDate) : formatDate(now),
+      currentSalary: formatMoney(offerData?.currentSalary),
+      revisedSalary: formatMoney(offerData?.revisedSalary),
+      revisedSalaryEffectiveFrom: offerData?.revisedSalaryEffectiveFrom ? formatDate(offerData.revisedSalaryEffectiveFrom) : "N/A",
       annualCtc: formatMoney(offerData?.annualCtc),
       monthlyGross: formatMoney(offerData?.monthlyGross),
       probationPeriodMonths: (offerData?.probationPeriodMonths ?? "N/A").toString(),
       securityDeposit: formatMoney(offerData?.securityDeposit),
+      leaveEntitlementAnnual: (offerData?.leaveEntitlementAnnual ?? 12).toString(),
+      festivalLeavesPerYear: (offerData?.festivalLeavesPerYear ?? 13).toString(),
+      workingDays: offerData?.workingDays || "Monday to Friday and 1st/3rd/5th Saturday",
+      workingHours: offerData?.workingHours || "9:30 AM to 5:30 PM",
+      lateArrivalGraceCount: (offerData?.lateArrivalGraceCount ?? 3).toString(),
+      lateArrivalCutoff: offerData?.lateArrivalCutoff || "9:45 AM",
+      hrEmail: offerData?.hrEmail || "nischal@nragroup.in",
+      emergencyWhatsapp: offerData?.emergencyWhatsapp || "9930007074",
+      minCommitmentUntil: offerData?.minCommitmentUntil || "As per offer terms",
+      noticePeriodMonths: (offerData?.noticePeriodMonths ?? 1).toString(),
       panNumber: offerData?.panNumber || "N/A",
       bankName: offerData?.bankName || "N/A",
       bankAccountNumber: offerData?.bankAccountNumber || "N/A",
       ifscCode: offerData?.ifscCode || "N/A",
       jobLocation: offerData?.jobLocation || "N/A",
       reportingManager: offerData?.reportingManager || "N/A",
+      responsibilitiesList: toListItems(offerData?.responsibilitiesText, [
+        "Managing, executing, and timely completion of audits and tax compliance",
+        "Direct and indirect tax compliance",
+        "Audit documentation and reporting",
+      ]),
+      kycList: toListItems(offerData?.kycDocumentsText, [
+        "PAN Card copy",
+        "Aadhaar Card copy",
+        "Educational qualification certificates",
+        "Bank account details with cancelled cheque",
+      ]),
+      conflictOfInterestClause: offerData?.conflictOfInterestClause || "Employee must disclose any conflict of interest with firm clients.",
+      confidentialityClause: offerData?.confidentialityClause || "Employee shall not disclose client or firm confidential information to any third party.",
+      legalRecourseClause: offerData?.legalRecourseClause || "Any proven confidentiality breach may lead to legal recourse by the firm and affected client.",
       specialTerms: offerData?.specialTerms || "As per company policy.",
     };
 

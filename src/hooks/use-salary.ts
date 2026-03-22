@@ -59,18 +59,37 @@ export interface OfferLetter {
 }
 
 export interface OfferLetterInput {
+  positionTitle?: string;
   annualCtc?: number;
   monthlyGross?: number;
+  currentSalary?: number;
+  revisedSalary?: number;
+  revisedSalaryEffectiveFrom?: string;
   probationPeriodMonths?: number;
   securityDeposit?: number;
+  leaveEntitlementAnnual?: number;
+  festivalLeavesPerYear?: number;
+  workingDays?: string;
+  workingHours?: string;
+  lateArrivalGraceCount?: number;
+  lateArrivalCutoff?: string;
   joiningDate?: string;
   issueDate?: string;
   jobLocation?: string;
   reportingManager?: string;
+  hrEmail?: string;
+  emergencyWhatsapp?: string;
+  minCommitmentUntil?: string;
+  noticePeriodMonths?: number;
   panNumber?: string;
   bankName?: string;
   bankAccountNumber?: string;
   ifscCode?: string;
+  confidentialityClause?: string;
+  conflictOfInterestClause?: string;
+  legalRecourseClause?: string;
+  responsibilitiesText?: string;
+  kycDocumentsText?: string;
   specialTerms?: string;
 }
 
