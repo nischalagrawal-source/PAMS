@@ -23,7 +23,7 @@ function record(section, test, status, detail = "") {
 }
 
 async function safe(section, test, fn) {
-  try { await fn(); } catch (err) { record(section, test, "FAIL", err.message); }
+  try { await fn(); } catch (err) { record(section, test, "FAIL", err instanceof Error ? err.message : String(err)); }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -862,7 +862,7 @@ async function main() {
     await testAnomalyReports();
     await testRBAC();
   } catch (err) {
-    console.error("\n💥 CRITICAL ERROR:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));
+    console.error("\n💥 CRITICAL ERROR:", err instanceof Error ? err.message : String(err), err instanceof Error ? err.stack?.split("\n").slice(0, 3).join("\n") : "");
   }
 
   // Summary

@@ -16,7 +16,7 @@ async function test() {
     });
     console.log("✅ leaveRequest OK, count:", leaves.length);
   } catch (e) {
-    console.error("❌ leaveRequest ERROR:", e.message);
+    console.error("❌ leaveRequest ERROR:", e instanceof Error ? e.message : String(e));
   }
 
   console.log("\nTesting attendance.findMany...");
@@ -29,7 +29,7 @@ async function test() {
     });
     console.log("✅ attendance OK, count:", att.length);
   } catch (e) {
-    console.error("❌ attendance ERROR:", e.message);
+    console.error("❌ attendance ERROR:", e instanceof Error ? e.message : String(e));
   }
 
   console.log("\nTesting attendance.findMany (no relation orderBy)...");
@@ -42,7 +42,7 @@ async function test() {
     });
     console.log("✅ attendance (simple orderBy) OK, count:", att2.length);
   } catch (e) {
-    console.error("❌ attendance (simple orderBy) ERROR:", e.message);
+    console.error("❌ attendance (simple orderBy) ERROR:", e instanceof Error ? e.message : String(e));
   }
 
   await prisma.$disconnect();
