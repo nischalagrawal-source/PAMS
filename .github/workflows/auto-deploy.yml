@@ -25,18 +25,73 @@ jobs:
           username: ${{ secrets.PROD_VPS_USER }}
           key: ${{ secrets.PROD_VPS_SSH_KEY }}
           port: ${{ secrets.PROD_VPS_PORT }}
-          script_stop: true
+          command_timeout: 20m
           script: |
-            if [ ! -d "/var/www/pams/.git" ]; then
-              echo "Missing /var/www/pams git checkout. Run initial VPS setup and first deploy once."
+            set -e
+            export APP_DIR="/var/www/pams"
+
+            echo "=== Checking prerequisites ==="
+            echo "Node: $(node -v 2>&1 || echo 'NOT FOUND')"
+            echo "npm: $(npm -v 2>&1 || echo 'NOT FOUND')"
+            echo "git: $(git --version 2>&1 || echo 'NOT FOUND')"
+            echo "pm2: $(pm2 -v 2>&1 || echo 'NOT FOUND')"
+            free -m 2>/dev/null || echo "free command not available"
+            echo ""
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "ERROR: $APP_DIR is not a git repository"
               exit 1
             fi
 
-            cd /var/www/pams
+            cd "$APP_DIR"
+
+            echo "=== Ensuring swap ==="
+            if [ "$(swapon --show --noheadings 2>/dev/null | wc -l)" -eq 0 ]; then
+              echo "Creating 2G swap..."
+              if [ -f /swapfile ]; then swapoff /swapfile 2>/dev/null || true; rm -f /swapfile; fi
+              fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+              chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+              echo "Swap enabled"
+            else
+              echo "Swap already active"
+            fi
+
+            echo "=== Pulling latest code ==="
             git fetch origin master
             git reset --hard origin/master
-            sed -i 's/\r$//' deploy/deploy.sh
-            bash deploy/deploy.sh master "${{ secrets.PROD_HEALTHCHECK_URL }}"
+            echo "Now at: $(git log --oneline -1)"
+
+            echo "=== Checking .env ==="
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file missing!"
+              exit 1
+            fi
+            echo ".env exists ($(wc -l < .env) lines)"
+
+            echo "=== Installing dependencies ==="
+            npm ci --production=false 2>&1
+
+            echo "=== Syncing database schema ==="
+            npx prisma db push --skip-generate 2>&1 || npx prisma db push 2>&1
+
+            echo "=== Generating Prisma client ==="
+            npx prisma generate 2>&1
+
+            echo "=== Building app ==="
+            rm -rf .next
+            export NODE_OPTIONS="--max-old-space-size=1536"
+            npm run build 2>&1
+
+            echo "=== Restarting PM2 ==="
+            mkdir -p /var/log/pams
+            pm2 restart pams 2>&1 || pm2 start ecosystem.config.js 2>&1
+            pm2 save 2>&1
+            pm2 startup systemd -u root --hp /root 2>/dev/null || true
+
+            echo ""
+            echo "=== DEPLOY COMPLETE ==="
+            echo "App running at http://localhost:3000"
+            pm2 status
 
       - name: Deploy staging on VPS over SSH
         if: github.ref == 'refs/heads/staging'
@@ -46,18 +101,30 @@ jobs:
           username: ${{ secrets.STAGING_VPS_USER }}
           key: ${{ secrets.STAGING_VPS_SSH_KEY }}
           port: ${{ secrets.STAGING_VPS_PORT }}
-          script_stop: true
+          command_timeout: 20m
           script: |
-            if [ ! -d "/var/www/pams/.git" ]; then
-              echo "Missing /var/www/pams git checkout. Run initial VPS setup and first deploy once."
+            set -e
+            export APP_DIR="/var/www/pams"
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "ERROR: $APP_DIR is not a git repository"
               exit 1
             fi
 
-            cd /var/www/pams
+            cd "$APP_DIR"
             git fetch origin staging
             git reset --hard origin/staging
-            sed -i 's/\r$//' deploy/deploy.sh
-            bash deploy/deploy.sh staging "${{ secrets.STAGING_HEALTHCHECK_URL }}"
+
+            npm ci --production=false 2>&1
+            npx prisma db push --skip-generate 2>&1 || npx prisma db push 2>&1
+            npx prisma generate 2>&1
+            rm -rf .next
+            export NODE_OPTIONS="--max-old-space-size=1536"
+            npm run build 2>&1
+            pm2 restart pams 2>&1 || pm2 start ecosystem.config.js 2>&1
+            pm2 save 2>&1
+
+            echo "=== STAGING DEPLOY COMPLETE ==="
 
       - name: Notify Slack (production)
         if: always() && github.ref == 'refs/heads/master'
