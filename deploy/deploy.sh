@@ -15,12 +15,32 @@ TARGET_BRANCH="${1:-master}"
 HEALTHCHECK_URL="${2:-}"
 PREVIOUS_COMMIT=""
 
+# ---- Ensure swap exists (prevents OOM on low-memory VPS) ----
+ensure_swap() {
+  if [ "$(swapon --noheadings | wc -l)" -eq 0 ]; then
+    echo "-> No swap detected. Creating 2 GB swap file..."
+    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo "-> Swap enabled"
+  else
+    echo "-> Swap already active"
+  fi
+}
+
+# ---- Log a timestamped step header ----
+step() {
+  echo ""
+  echo "=== [$(date '+%H:%M:%S')] $1 ==="
+}
+
 run_schema_sync() {
-  if npx prisma db push --skip-generate; then
+  if npx prisma db push --skip-generate 2>&1; then
     echo "-> Schema synced with --skip-generate"
   else
     echo "-> --skip-generate not supported, retrying without it..."
-    npx prisma db push
+    npx prisma db push 2>&1
   fi
 }
 
@@ -89,32 +109,38 @@ trap rollback ERR
 echo "======================================================"
 echo " P&AMS Deploy"
 echo " Branch: $TARGET_BRANCH"
+echo " Node:   $(node -v)"
+echo " npm:    $(npm -v)"
+echo " Free memory: $(free -m | awk '/Mem:/{print $4}') MB"
 echo "======================================================"
+
+ensure_swap
 
 cd "$APP_DIR"
 PREVIOUS_COMMIT="$(git rev-parse HEAD)"
 
-echo "-> Fetching latest code..."
+step "Fetching latest code"
 git fetch origin "$TARGET_BRANCH"
 git checkout "$TARGET_BRANCH"
 git reset --hard "origin/$TARGET_BRANCH"
 
-echo "-> Installing dependencies..."
-npm ci --production=false
+step "Installing dependencies"
+npm ci --production=false 2>&1
 
-echo "-> Syncing database schema..."
+step "Syncing database schema"
 run_schema_sync
 
-echo "-> Generating Prisma client..."
-npx prisma generate
+step "Generating Prisma client"
+npx prisma generate 2>&1
 
-echo "-> Cleaning .next cache..."
+step "Cleaning .next cache"
 rm -rf .next
 
-echo "-> Building for production..."
-npm run build
+step "Building for production"
+export NODE_OPTIONS="--max-old-space-size=1536"
+npm run build 2>&1
 
-echo "-> Restarting app..."
+step "Restarting app"
 pm2 restart pams || pm2 start ecosystem.config.js
 pm2 save
 pm2 startup systemd -u root --hp /root 2>/dev/null || true
