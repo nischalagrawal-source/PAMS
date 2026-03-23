@@ -1,0 +1,5 @@
+# Force LF line endings for shell scripts and YAML (critical for Linux VPS deploy)
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+deploy/* text eol=lf
