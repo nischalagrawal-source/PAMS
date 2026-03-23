@@ -88,6 +88,24 @@ jobs:
             pm2 save 2>&1
             pm2 startup systemd -u root --hp /root 2>/dev/null || true
 
+            echo "=== Verifying app health ==="
+            HEALTH_URL="http://127.0.0.1:3000/api/health"
+            OK=0
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              CODE="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$HEALTH_URL" || true)"
+              if [ "$CODE" = "200" ]; then
+                OK=1
+                break
+              fi
+              echo "Health check attempt $i failed (HTTP $CODE). Retrying..."
+              sleep 3
+            done
+
+            if [ "$OK" -ne 1 ]; then
+              echo "ERROR: Health check failed after deployment"
+              exit 1
+            fi
+
             echo ""
             echo "=== DEPLOY COMPLETE ==="
             echo "App running at http://localhost:3000"
@@ -123,6 +141,13 @@ jobs:
             npm run build 2>&1
             pm2 restart pams 2>&1 || pm2 start ecosystem.config.js 2>&1
             pm2 save 2>&1
+
+            HEALTH_URL="http://127.0.0.1:3000/api/health"
+            CODE="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$HEALTH_URL" || true)"
+            if [ "$CODE" != "200" ]; then
+              echo "ERROR: Staging health check failed (HTTP $CODE)"
+              exit 1
+            fi
 
             echo "=== STAGING DEPLOY COMPLETE ==="
 
