@@ -81,6 +81,9 @@ export const FEATURES = [
   { key: "admin_parameters", label: "Parameters", description: "Manage performance parameters" },
   { key: "admin_rights", label: "Rights Management", description: "Manage user permissions" },
   { key: "admin_anomalies", label: "Anomaly Rules", description: "Manage anomaly detection" },
+  { key: "admin_company_settings", label: "Company Settings", description: "Configure office hours & policies" },
+  { key: "admin_leave_policies", label: "Leave Policies", description: "Manage leave configurations" },
+  { key: "admin_salary", label: "Salary Structures", description: "Manage employee salaries" },
 ] as const;
 
 export type FeatureKey = (typeof FEATURES)[number]["key"];
@@ -175,5 +178,23 @@ export const ADMIN_NAV_ITEMS = [
     href: "/admin/anomalies",
     icon: "AlertTriangle",
     feature: "admin_anomalies" as FeatureKey,
+  },
+  {
+    title: "Company Settings",
+    href: "/admin/company-settings",
+    icon: "Clock",
+    feature: "admin_company_settings" as FeatureKey,
+  },
+  {
+    title: "Leave Policies",
+    href: "/admin/leave-policies",
+    icon: "CalendarOff",
+    feature: "admin_leave_policies" as FeatureKey,
+  },
+  {
+    title: "Salary Structures",
+    href: "/admin/salary-structures",
+    icon: "Wallet",
+    feature: "admin_salary" as FeatureKey,
   },
 ] as const;

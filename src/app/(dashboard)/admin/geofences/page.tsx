@@ -404,16 +404,18 @@ export default function GeoFencesPage() {
                     </span>
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                <div className="flex gap-1">
                   <button
                     onClick={() => openEdit(fence)}
                     className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-800"
+                    title="Edit geo-fence"
                   >
                     <Pencil size={14} />
                   </button>
                   <button
                     onClick={() => { if (confirm("Delete this geo-fence?")) deleteMutation.mutate(fence.id); }}
                     className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                    title="Delete geo-fence"
                   >
                     <Trash2 size={14} />
                   </button>
