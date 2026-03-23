@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Allow health checks to run without authentication
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const startedAt = Date.now();
 
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    // Test database connectivity with 5s timeout
+    const dbPromise = prisma.$queryRaw`SELECT 1`;
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Database check timeout")), 5000)
+    );
+
+    await Promise.race([dbPromise, timeoutPromise]);
 
     return NextResponse.json(
       {
@@ -15,7 +24,7 @@ export async function GET() {
         timestamp: new Date().toISOString(),
         latencyMs: Date.now() - startedAt,
       },
-      { status: 200 },
+      { status: 200 }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown health error";
@@ -28,7 +37,7 @@ export async function GET() {
         latencyMs: Date.now() - startedAt,
         error: message,
       },
-      { status: 503 },
+      { status: 503 }
     );
   }
 }
