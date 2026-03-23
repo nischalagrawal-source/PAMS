@@ -33,6 +33,9 @@ jobs:
             fi
 
             cd /var/www/pams
+            git fetch origin master
+            git reset --hard origin/master
+            sed -i 's/\r$//' deploy/deploy.sh
             bash deploy/deploy.sh master "${{ secrets.PROD_HEALTHCHECK_URL }}"
 
       - name: Deploy staging on VPS over SSH
@@ -51,6 +54,9 @@ jobs:
             fi
 
             cd /var/www/pams
+            git fetch origin staging
+            git reset --hard origin/staging
+            sed -i 's/\r$//' deploy/deploy.sh
             bash deploy/deploy.sh staging "${{ secrets.STAGING_HEALTHCHECK_URL }}"
 
       - name: Notify Slack (production)
