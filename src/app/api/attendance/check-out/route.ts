@@ -54,6 +54,11 @@ export async function POST(req: NextRequest) {
         checkOutTime: null,
       },
       include: {
+        user: {
+          select: {
+            workMode: true,
+          },
+        },
         geoFence: {
           select: {
             id: true,
@@ -71,6 +76,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Enforce check-out near check-in geofence
+    let outsideFenceFlagReason: string | null = null;
+
     if (attendance.geoFence) {
       const distance = haversineDistance(
         latitude,
@@ -80,15 +87,22 @@ export async function POST(req: NextRequest) {
       );
       const allowedDistance = attendance.geoFence.radiusM + CHECKOUT_FENCE_BUFFER_M;
       if (distance > allowedDistance) {
-        await prisma.attendance.update({
-          where: { id: attendance.id },
-          data: {
-            status: AttendanceStatus.FLAGGED,
-            isSuspiciousLocation: true,
-            suspiciousReason: `Checkout outside assigned fence (${Math.round(distance)}m from center, allowed ${allowedDistance}m)`,
-          },
-        });
-        return errorResponse("Check-out denied: you are outside your allowed geo-fence range", 403);
+        const outsideReason = `Checkout outside assigned fence (${Math.round(distance)}m from center, allowed ${allowedDistance}m)`;
+
+        // Client users may move after client visit; allow checkout but flag for review.
+        if (attendance.user.workMode === "client") {
+          outsideFenceFlagReason = outsideReason;
+        } else {
+          await prisma.attendance.update({
+            where: { id: attendance.id },
+            data: {
+              status: AttendanceStatus.FLAGGED,
+              isSuspiciousLocation: true,
+              suspiciousReason: outsideReason,
+            },
+          });
+          return errorResponse("Check-out denied: you are outside your allowed geo-fence range", 403);
+        }
       }
     }
 
@@ -100,6 +114,9 @@ export async function POST(req: NextRequest) {
     const overtimeHours = Math.max(0, totalHours - STANDARD_WORK_HOURS);
 
     const lowAccuracy = accuracy !== undefined && accuracy > MAX_GPS_ACCURACY_M;
+    const suspiciousReasons: string[] = [];
+    if (outsideFenceFlagReason) suspiciousReasons.push(outsideFenceFlagReason);
+    if (lowAccuracy) suspiciousReasons.push(`Low checkout GPS precision (${Math.round(accuracy!)}m > ${MAX_GPS_ACCURACY_M}m threshold)`);
 
     // Update attendance record
     const updated = await prisma.attendance.update({
@@ -111,11 +128,11 @@ export async function POST(req: NextRequest) {
         checkOutAccuracyM: accuracy,
         totalHours: Math.round(totalHours * 100) / 100,
         overtimeHours: Math.round(overtimeHours * 100) / 100,
-        ...(lowAccuracy
+        ...(suspiciousReasons.length > 0
           ? {
               status: AttendanceStatus.FLAGGED,
               isSuspiciousLocation: true,
-              suspiciousReason: `Low checkout GPS precision (${Math.round(accuracy!)}m > ${MAX_GPS_ACCURACY_M}m threshold)`,
+              suspiciousReason: suspiciousReasons.join("; "),
             }
           : {}),
       },
