@@ -5,13 +5,7 @@ export default NextAuth(authEdgeConfig).auth;
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder assets
-     */
-    "/((?!_next/static|_next/image|favicon.ico|public|icon-.*\.png|manifest\.json|api/internal|api/health|sso).*)",
+    // Match all routes except the ones below
+    "/((?!api/auth|api/internal|api/health|sso|_next/static|_next/image|favicon.ico|public).*)",
   ],
 };
