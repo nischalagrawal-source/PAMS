@@ -105,7 +105,7 @@ jobs:
             npm ci --production=false 2>&1
 
             echo "=== Syncing database schema ==="
-            npx prisma db push --skip-generate 2>&1 || npx prisma db push 2>&1
+            npx prisma db push 2>&1
 
             echo "=== Generating Prisma client ==="
             npx prisma generate 2>&1
@@ -200,7 +200,7 @@ jobs:
             git reset --hard origin/staging
 
             npm ci --production=false 2>&1
-            npx prisma db push --skip-generate 2>&1 || npx prisma db push 2>&1
+            npx prisma db push 2>&1
             npx prisma generate 2>&1
             rm -rf .next
             export NODE_OPTIONS="--max-old-space-size=1536"

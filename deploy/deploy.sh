@@ -36,12 +36,8 @@ step() {
 }
 
 run_schema_sync() {
-  if npx prisma db push --skip-generate 2>&1; then
-    echo "-> Schema synced with --skip-generate"
-  else
-    echo "-> --skip-generate not supported, retrying without it..."
-    npx prisma db push 2>&1
-  fi
+  npx prisma db push 2>&1
+  echo "-> Schema synced"
 }
 
 health_check() {
