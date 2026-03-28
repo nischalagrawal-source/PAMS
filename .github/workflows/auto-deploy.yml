@@ -17,6 +17,38 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Preflight production SSH connectivity
+        if: github.ref == 'refs/heads/master'
+        env:
+          PROD_VPS_HOST: ${{ secrets.PROD_VPS_HOST }}
+          PROD_VPS_PORT: ${{ secrets.PROD_VPS_PORT }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PROD_VPS_HOST:-}" ] || [ -z "${PROD_VPS_PORT:-}" ]; then
+            echo "ERROR: PROD_VPS_HOST or PROD_VPS_PORT secret is missing"
+            exit 1
+          fi
+
+          if ! [[ "$PROD_VPS_PORT" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: PROD_VPS_PORT must be numeric. Current value is invalid."
+            exit 1
+          fi
+
+          echo "Testing TCP connectivity to production VPS on port ${PROD_VPS_PORT}..."
+          for attempt in 1 2 3; do
+            if timeout 8 bash -c "</dev/tcp/${PROD_VPS_HOST}/${PROD_VPS_PORT}" 2>/dev/null; then
+              echo "SSH TCP connectivity check passed on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed. Retrying in 3 seconds..."
+            sleep 3
+          done
+
+          echo "ERROR: Cannot reach production VPS on ${PROD_VPS_PORT}."
+          echo "Hint: Verify VPS firewall/security group allow SSH from GitHub-hosted runners and confirm PROD_VPS_HOST/PORT secrets."
+          exit 1
+
       - name: Deploy production on VPS over SSH
         if: github.ref == 'refs/heads/master'
         uses: appleboy/ssh-action@v1.2.0
@@ -25,6 +57,7 @@ jobs:
           username: ${{ secrets.PROD_VPS_USER }}
           key: ${{ secrets.PROD_VPS_SSH_KEY }}
           port: ${{ secrets.PROD_VPS_PORT }}
+          timeout: 30s
           command_timeout: 40m
           script: |
             set -e
@@ -111,6 +144,38 @@ jobs:
             echo "App running at http://localhost:3000"
             pm2 status
 
+      - name: Preflight staging SSH connectivity
+        if: github.ref == 'refs/heads/staging'
+        env:
+          STAGING_VPS_HOST: ${{ secrets.STAGING_VPS_HOST }}
+          STAGING_VPS_PORT: ${{ secrets.STAGING_VPS_PORT }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${STAGING_VPS_HOST:-}" ] || [ -z "${STAGING_VPS_PORT:-}" ]; then
+            echo "ERROR: STAGING_VPS_HOST or STAGING_VPS_PORT secret is missing"
+            exit 1
+          fi
+
+          if ! [[ "$STAGING_VPS_PORT" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: STAGING_VPS_PORT must be numeric. Current value is invalid."
+            exit 1
+          fi
+
+          echo "Testing TCP connectivity to staging VPS on port ${STAGING_VPS_PORT}..."
+          for attempt in 1 2 3; do
+            if timeout 8 bash -c "</dev/tcp/${STAGING_VPS_HOST}/${STAGING_VPS_PORT}" 2>/dev/null; then
+              echo "SSH TCP connectivity check passed on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed. Retrying in 3 seconds..."
+            sleep 3
+          done
+
+          echo "ERROR: Cannot reach staging VPS on ${STAGING_VPS_PORT}."
+          echo "Hint: Verify VPS firewall/security group allow SSH from GitHub-hosted runners and confirm STAGING_VPS_HOST/PORT secrets."
+          exit 1
+
       - name: Deploy staging on VPS over SSH
         if: github.ref == 'refs/heads/staging'
         uses: appleboy/ssh-action@v1.2.0
@@ -119,6 +184,7 @@ jobs:
           username: ${{ secrets.STAGING_VPS_USER }}
           key: ${{ secrets.STAGING_VPS_SSH_KEY }}
           port: ${{ secrets.STAGING_VPS_PORT }}
+          timeout: 30s
           command_timeout: 20m
           script: |
             set -e
