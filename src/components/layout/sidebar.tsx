@@ -118,7 +118,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-col gap-1 p-3">
+      <nav className="flex flex-col gap-1 overflow-y-auto p-3 pb-20" style={{ maxHeight: "calc(100vh - 4rem)" }}>
         {/* Main nav */}
         {filteredNavItems.map((item) => {
           const Icon = iconMap[item.icon] || LayoutDashboard;

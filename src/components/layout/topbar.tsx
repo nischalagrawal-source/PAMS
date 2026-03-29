@@ -1,7 +1,8 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/types";
 import {
   Bell,
@@ -19,6 +20,7 @@ interface TopbarProps {
 export function Topbar({ sidebarCollapsed, onMenuClick }: TopbarProps) {
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
+  const router = useRouter();
   const [showDropdown, setShowDropdown] = useState(false);
   const [dateStr, setDateStr] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -110,11 +112,17 @@ export function Topbar({ sidebarCollapsed, onMenuClick }: TopbarProps) {
                   {user?.role.replace("_", " ")}
                 </span>
               </div>
-              <button className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
+              <button
+                onClick={() => { setShowDropdown(false); router.push("/profile"); }}
+                className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
                 <User size={16} />
                 My Profile
               </button>
-              <button className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
+              <button
+                onClick={() => { setShowDropdown(false); router.push("/admin/rules"); }}
+                className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
                 <Settings size={16} />
                 Settings
               </button>

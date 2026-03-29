@@ -180,12 +180,6 @@ export const ADMIN_NAV_ITEMS = [
     feature: "admin_anomalies" as FeatureKey,
   },
   {
-    title: "Company Settings",
-    href: "/admin/company-settings",
-    icon: "Clock",
-    feature: "admin_company_settings" as FeatureKey,
-  },
-  {
     title: "Rules & Policies",
     href: "/admin/rules",
     icon: "Settings2",
