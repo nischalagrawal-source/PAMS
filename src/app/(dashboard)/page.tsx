@@ -290,27 +290,27 @@ export default function DashboardPage() {
       {/* Quick action cards for personal info if staff */}
       {user?.role === "STAFF" && (
         <div className="grid gap-6 sm:grid-cols-3">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-6 dark:border-blue-900 dark:bg-blue-950/30">
+          <a href="/attendance" className="block rounded-xl border border-blue-100 bg-blue-50 p-6 transition-shadow hover:shadow-md dark:border-blue-900 dark:bg-blue-950/30">
             <MapPin className="mb-3 text-blue-600" size={24} />
             <h4 className="font-semibold text-blue-900 dark:text-blue-100">Check In</h4>
             <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
               Mark your attendance for today
             </p>
-          </div>
-          <div className="rounded-xl border border-purple-100 bg-purple-50 p-6 dark:border-purple-900 dark:bg-purple-950/30">
+          </a>
+          <a href="/leaves" className="block rounded-xl border border-purple-100 bg-purple-50 p-6 transition-shadow hover:shadow-md dark:border-purple-900 dark:bg-purple-950/30">
             <CalendarOff className="mb-3 text-purple-600" size={24} />
             <h4 className="font-semibold text-purple-900 dark:text-purple-100">Apply Leave</h4>
             <p className="mt-1 text-sm text-purple-700 dark:text-purple-300">
               Request time off (apply 7+ days in advance)
             </p>
-          </div>
-          <div className="rounded-xl border border-green-100 bg-green-50 p-6 dark:border-green-900 dark:bg-green-950/30">
+          </a>
+          <a href="/tasks" className="block rounded-xl border border-green-100 bg-green-50 p-6 transition-shadow hover:shadow-md dark:border-green-900 dark:bg-green-950/30">
             <ListTodo className="mb-3 text-green-600" size={24} />
             <h4 className="font-semibold text-green-900 dark:text-green-100">My Tasks</h4>
             <p className="mt-1 text-sm text-green-700 dark:text-green-300">
               View and manage your assigned tasks
             </p>
-          </div>
+          </a>
         </div>
       )}
     </div>

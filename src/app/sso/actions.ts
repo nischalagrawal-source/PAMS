@@ -1,12 +1,20 @@
 "use server";
 
-import { signIn } from "@/lib/auth";
+import { signIn, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import jwt from "jsonwebtoken";
 
 export async function ssoLogin(token: string): Promise<{ error?: string }> {
   try {
+    // Sign out any existing session first to prevent stale-user issues
+    // (e.g. admin session lingering when staff user clicks SSO)
+    const existingSession = await auth();
+    if (existingSession?.user) {
+      await signOut({ redirect: false });
+    }
+
     const decoded = jwt.decode(token) as { role?: string } | null;
     const redirectTo = ["superadmin", "admin", "partner"].includes(decoded?.role || "")
       ? "/admin/companies"

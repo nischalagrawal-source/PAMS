@@ -119,7 +119,9 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-blue-200/40">
-          Contact your administrator if you need access
+          Staff can login directly with their email and company password.
+          <br />
+          Contact your administrator if you need access.
         </p>
       </div>
     </div>

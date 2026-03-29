@@ -6,6 +6,37 @@ import { prisma } from "./db";
 import type { FeatureKey } from "./constants";
 import type { Permission } from "@/types";
 
+/**
+ * Default feature permissions by role for SSO-created users
+ */
+function getSSODefaultPermissions(role: string) {
+  const staffPerms = [
+    { feature: "dashboard", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "attendance", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "leaves", canView: true, canCreate: true, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "tasks", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
+    { feature: "salary", canView: true, canCreate: false, canEdit: false, canDelete: false, canApprove: false },
+  ];
+
+  const allFeatures = [
+    "dashboard", "attendance", "leaves", "tasks", "performance",
+    "salary", "reports", "notifications", "admin_users", "admin_companies",
+    "admin_geofences", "admin_parameters", "admin_rights", "admin_anomalies",
+  ];
+
+  const adminPerms = allFeatures.map((feature) => ({
+    feature, canView: true, canCreate: true, canEdit: true, canDelete: true, canApprove: true,
+  }));
+
+  switch (role) {
+    case "SUPER_ADMIN":
+    case "ADMIN":
+      return adminPerms;
+    default:
+      return staffPerms;
+  }
+}
+
 export const authConfig: NextAuthConfig = {
   providers: [
     // ── NRA Co SSO: auto-login from nraco.in portal ──────────────
@@ -65,7 +96,9 @@ export const authConfig: NextAuthConfig = {
             const lastName = parts.slice(1).join(" ") || "-";
             const count = await prisma.user.count({ where: { companyId: company.id } });
             const employeeCode = `SSO${String(count + 1).padStart(3, "0")}`;
-            const hashedPw = await bcrypt.hash(`SSO_${Date.now()}`, 10);
+            const hashedPw = await bcrypt.hash("Staff@1234", 12);
+
+            const defaultPerms = getSSODefaultPermissions(pmsRole);
 
             user = await prisma.user.create({
               data: {
@@ -77,10 +110,25 @@ export const authConfig: NextAuthConfig = {
                 employeeCode,
                 role: pmsRole as "SUPER_ADMIN" | "ADMIN" | "STAFF",
                 designation: payload.branch || "",
+                featurePermissions: {
+                  create: defaultPerms,
+                },
               },
               include: { company: { select: { name: true } }, branch: { select: { name: true } }, featurePermissions: true },
             });
+          }
 
+          // Backfill permissions for existing SSO users who have none
+          if (user.featurePermissions.length === 0) {
+            const defaultPerms = getSSODefaultPermissions(user.role);
+            await prisma.featurePermission.createMany({
+              data: defaultPerms.map((p) => ({ ...p, userId: user!.id })),
+            });
+            user = await prisma.user.findUnique({
+              where: { id: user.id },
+              include: { company: { select: { name: true } }, branch: { select: { name: true } }, featurePermissions: true },
+            });
+            if (!user) return null;
           }
 
           if (!user.isActive) return null;
