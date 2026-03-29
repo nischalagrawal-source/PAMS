@@ -141,6 +141,16 @@ pm2 restart pams || pm2 start ecosystem.config.js
 pm2 save
 pm2 startup systemd -u root --hp /root 2>/dev/null || true
 
+step "Waiting for app to start"
+for i in 1 2 3 4 5 6; do
+  sleep 5
+  echo "-> Attempt $i: checking if app is ready..."
+  if curl --silent --max-time 5 --output /dev/null --write-out "%{http_code}" "http://127.0.0.1:3000/api/health" 2>/dev/null | grep -q '^[23]'; then
+    echo "-> App is ready!"
+    break
+  fi
+done
+
 health_check
 
 trap - ERR
