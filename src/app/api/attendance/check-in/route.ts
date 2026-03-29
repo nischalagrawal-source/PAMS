@@ -52,18 +52,43 @@ export async function POST(req: NextRequest) {
     });
     if (existing) return errorResponse("Already checked in today");
 
-    // Fetch company settings (inTime, graceMinutes, lateThreshold)
+    // Fetch company settings
     const company = await prisma.company.findUnique({
       where: { id: session.user.companyId },
-      select: { inTime: true, graceMinutes: true, lateThreshold: true },
+      select: {
+        inTime: true, graceMinutes: true, lateThreshold: true,
+        saturdayOffRule: true,
+      },
     });
 
     // Check if today is a holiday
     const holiday = await prisma.holiday.findUnique({
       where: { companyId_date: { companyId: session.user.companyId, date: today } },
     });
+    let isHolidayWork = false;
+    let holidayReason: string | null = null;
+
     if (holiday && !holiday.isOptional) {
-      return errorResponse(`Today is a holiday: ${holiday.name}. Check-in not required.`, 400);
+      isHolidayWork = true;
+      holidayReason = `holiday: ${holiday.name}`;
+    }
+
+    // Check if today is an off-Saturday (2nd/4th Saturday rule)
+    if (!isHolidayWork && today.getDay() === 6) {
+      const dayOfMonth = today.getDate();
+      const satNumber = Math.ceil(dayOfMonth / 7); // 1st, 2nd, 3rd, 4th, 5th Saturday
+      const rule = company?.saturdayOffRule ?? "2nd_4th";
+
+      const isOff =
+        rule === "all" ||
+        (rule === "2nd_4th" && (satNumber === 2 || satNumber === 4)) ||
+        (rule === "2nd" && satNumber === 2) ||
+        (rule === "4th" && satNumber === 4);
+
+      if (isOff) {
+        isHolidayWork = true;
+        holidayReason = `saturday_off: ${satNumber}${satNumber === 1 ? "st" : satNumber === 2 ? "nd" : satNumber === 3 ? "rd" : "th"} Saturday`;
+      }
     }
 
     // Fetch user's shift override (per-user in/out timing)
@@ -122,6 +147,11 @@ export async function POST(req: NextRequest) {
         ? AttendanceStatus.AUTO_APPROVED
         : AttendanceStatus.PENDING_REVIEW;
 
+    // Holiday/Saturday-off work always needs admin approval
+    if (isHolidayWork) {
+      status = AttendanceStatus.PENDING_REVIEW;
+    }
+
     let isSuspiciousLocation = false;
     let suspiciousReason: string | null = null;
     if (accuracy !== undefined && accuracy > MAX_GPS_ACCURACY_M) {
@@ -179,6 +209,8 @@ export async function POST(req: NextRequest) {
         isLate,
         lateByMinutes,
         isHalfDay,
+        isHolidayWork,
+        holidayReason,
       },
       include: {
         geoFence: { select: { id: true, label: true, type: true } },
@@ -188,7 +220,9 @@ export async function POST(req: NextRequest) {
     let message = isSuspiciousLocation
       ? `Checked in with warning: ${suspiciousReason}`
       : "Checked in successfully";
-    if (isHalfDay) {
+    if (isHolidayWork) {
+      message = `Checked in on ${holidayReason} — pending admin approval`;
+    } else if (isHalfDay) {
       message = `Checked in — marked as HALF DAY (${lateByMinutes} min late, ${effectiveLateThreshold}+ late arrivals this month)`;
     } else if (isLate) {
       message = `Checked in — LATE by ${lateByMinutes} minutes`;

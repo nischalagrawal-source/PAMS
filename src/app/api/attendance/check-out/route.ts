@@ -113,6 +113,46 @@ export async function POST(req: NextRequest) {
       (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
     const overtimeHours = Math.max(0, totalHours - STANDARD_WORK_HOURS);
 
+    // OT pay calculation
+    let otEligible = false;
+    let otRatePerHour: number | null = null;
+    let otAmount: number | null = null;
+
+    if (overtimeHours > 0) {
+      const company = await prisma.company.findUnique({
+        where: { id: session.user.companyId },
+        select: { otEnabled: true, otMonths: true, dutyHoursPerDay: true },
+      });
+
+      if (company?.otEnabled) {
+        const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        if (company.otMonths.includes(monthStr)) {
+          otEligible = true;
+
+          const salary = await prisma.salaryStructure.findUnique({
+            where: { userId },
+            select: { netSalary: true },
+          });
+
+          if (salary) {
+            // Working days in this month (Mon–Sat, excluding Sundays)
+            const year = now.getFullYear();
+            const month = now.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            let workingDays = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+              const day = new Date(year, month, d).getDay();
+              if (day !== 0) workingDays++; // exclude Sundays
+            }
+
+            const dutyHours = company.dutyHoursPerDay || STANDARD_WORK_HOURS;
+            otRatePerHour = Math.round((salary.netSalary / (workingDays * dutyHours)) * 100) / 100;
+            otAmount = Math.round(overtimeHours * otRatePerHour * 100) / 100;
+          }
+        }
+      }
+    }
+
     const lowAccuracy = accuracy !== undefined && accuracy > MAX_GPS_ACCURACY_M;
     const suspiciousReasons: string[] = [];
     if (outsideFenceFlagReason) suspiciousReasons.push(outsideFenceFlagReason);
@@ -128,6 +168,9 @@ export async function POST(req: NextRequest) {
         checkOutAccuracyM: accuracy,
         totalHours: Math.round(totalHours * 100) / 100,
         overtimeHours: Math.round(overtimeHours * 100) / 100,
+        otEligible,
+        otRatePerHour,
+        otAmount,
         ...(suspiciousReasons.length > 0
           ? {
               status: AttendanceStatus.FLAGGED,

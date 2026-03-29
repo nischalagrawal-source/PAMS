@@ -9,6 +9,10 @@ interface CompanySettings {
   outTime: string;
   graceMinutes: number;
   lateThreshold: number;
+  saturdayOffRule: string;
+  otEnabled: boolean;
+  otMonths: string[];
+  dutyHoursPerDay: number;
 }
 
 async function fetchSettings(): Promise<CompanySettings> {
@@ -149,6 +153,74 @@ export function AttendanceRulesTab() {
           </ul>
         </div>
 
+        {/* Saturday Off Rule */}
+        <div className="border-t border-gray-200 pt-6 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Saturday Off Rule</h2>
+          <p className="mt-1 text-sm text-gray-500">Staff checking in on off-Saturdays will require admin approval.</p>
+          <div className="mt-4 max-w-xs">
+            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Off Saturdays</label>
+            <select
+              value={settings.saturdayOffRule}
+              onChange={(e) => setSettings({ ...settings, saturdayOffRule: e.target.value })}
+              className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            >
+              <option value="none">No Saturdays off</option>
+              <option value="2nd_4th">2nd & 4th Saturday off</option>
+              <option value="2nd">Only 2nd Saturday off</option>
+              <option value="4th">Only 4th Saturday off</option>
+              <option value="all">All Saturdays off</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Overtime Settings */}
+        <div className="border-t border-gray-200 pt-6 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Overtime (OT) Settings</h2>
+          <p className="mt-1 text-sm text-gray-500">Enable OT pay for selected months. Rate = Net Salary ÷ (Working Days × Duty Hours).</p>
+
+          <div className="mt-4 flex items-center gap-3">
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                checked={settings.otEnabled}
+                onChange={(e) => setSettings({ ...settings, otEnabled: e.target.checked })}
+                className="peer sr-only"
+              />
+              <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
+            </label>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {settings.otEnabled ? "OT Pay Enabled" : "OT Pay Disabled"}
+            </span>
+          </div>
+
+          {settings.otEnabled && (
+            <div className="mt-4 space-y-4">
+              <div className="max-w-xs">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Duty Hours / Day</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  step="0.5"
+                  value={settings.dutyHoursPerDay}
+                  onChange={(e) => setSettings({ ...settings, dutyHoursPerDay: Math.max(1, parseFloat(e.target.value) || 8) })}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                />
+                <p className="mt-1 text-xs text-gray-500">Standard duty hours used for OT rate calculation</p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">OT-Eligible Months</label>
+                <p className="mb-2 text-xs text-gray-500">Select months where overtime pay will be calculated</p>
+                <OtMonthPicker
+                  selected={settings.otMonths}
+                  onChange={(months) => setSettings({ ...settings, otMonths: months })}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end">
           <button
             type="submit"
@@ -160,6 +232,54 @@ export function AttendanceRulesTab() {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function OtMonthPicker({ selected, onChange }: { selected: string[]; onChange: (months: string[]) => void }) {
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+
+  function toggle(monthStr: string) {
+    if (selected.includes(monthStr)) {
+      onChange(selected.filter((m) => m !== monthStr));
+    } else {
+      onChange([...selected, monthStr].sort());
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setYear(year - 1)} className="rounded-lg border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800">←</button>
+        <span className="min-w-[4rem] text-center text-sm font-medium text-gray-900 dark:text-white">{year}</span>
+        <button type="button" onClick={() => setYear(year + 1)} className="rounded-lg border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800">→</button>
+      </div>
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+        {MONTH_NAMES.map((name, idx) => {
+          const monthStr = `${year}-${String(idx + 1).padStart(2, "0")}`;
+          const isSelected = selected.includes(monthStr);
+          return (
+            <button
+              key={monthStr}
+              type="button"
+              onClick={() => toggle(monthStr)}
+              className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                isSelected
+                  ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-600"
+                  : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+              }`}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+      {selected.length > 0 && (
+        <p className="text-xs text-gray-500">{selected.length} month(s) selected</p>
+      )}
     </div>
   );
 }

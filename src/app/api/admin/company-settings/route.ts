@@ -14,6 +14,10 @@ const updateCompanySettingsSchema = z.object({
   outTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be in HH:mm format"),
   graceMinutes: z.number().min(0).max(120),
   lateThreshold: z.number().min(1).max(30),
+  saturdayOffRule: z.enum(["none", "all", "2nd_4th", "2nd", "4th"]).optional(),
+  otEnabled: z.boolean().optional(),
+  otMonths: z.array(z.string().regex(/^\d{4}-\d{2}$/, "Month must be YYYY-MM")).optional(),
+  dutyHoursPerDay: z.number().min(1).max(24).optional(),
 });
 
 interface CompanySettings {
@@ -21,6 +25,10 @@ interface CompanySettings {
   outTime: string;
   graceMinutes: number;
   lateThreshold: number;
+  saturdayOffRule: string;
+  otEnabled: boolean;
+  otMonths: string[];
+  dutyHoursPerDay: number;
 }
 
 /**
@@ -44,6 +52,10 @@ export async function GET() {
         outTime: true,
         graceMinutes: true,
         lateThreshold: true,
+        saturdayOffRule: true,
+        otEnabled: true,
+        otMonths: true,
+        dutyHoursPerDay: true,
       },
     });
 
@@ -56,6 +68,10 @@ export async function GET() {
       outTime: company.outTime,
       graceMinutes: company.graceMinutes,
       lateThreshold: company.lateThreshold,
+      saturdayOffRule: company.saturdayOffRule,
+      otEnabled: company.otEnabled,
+      otMonths: company.otMonths,
+      dutyHoursPerDay: company.dutyHoursPerDay,
     };
 
     return successResponse(settings);
@@ -90,7 +106,7 @@ export async function PUT(req: NextRequest) {
       return errorResponse(msg);
     }
 
-    const { inTime, outTime, graceMinutes, lateThreshold } = parsed.data;
+    const { inTime, outTime, graceMinutes, lateThreshold, saturdayOffRule, otEnabled, otMonths, dutyHoursPerDay } = parsed.data;
 
     // Validate that outTime is after inTime
     const [inHour, inMin] = inTime.split(":").map(Number);
@@ -109,6 +125,10 @@ export async function PUT(req: NextRequest) {
         outTime,
         graceMinutes,
         lateThreshold,
+        ...(saturdayOffRule !== undefined && { saturdayOffRule }),
+        ...(otEnabled !== undefined && { otEnabled }),
+        ...(otMonths !== undefined && { otMonths }),
+        ...(dutyHoursPerDay !== undefined && { dutyHoursPerDay }),
         updatedAt: new Date(),
       },
       select: {
@@ -116,6 +136,10 @@ export async function PUT(req: NextRequest) {
         outTime: true,
         graceMinutes: true,
         lateThreshold: true,
+        saturdayOffRule: true,
+        otEnabled: true,
+        otMonths: true,
+        dutyHoursPerDay: true,
       },
     });
 
@@ -124,6 +148,10 @@ export async function PUT(req: NextRequest) {
       outTime: updated.outTime,
       graceMinutes: updated.graceMinutes,
       lateThreshold: updated.lateThreshold,
+      saturdayOffRule: updated.saturdayOffRule,
+      otEnabled: updated.otEnabled,
+      otMonths: updated.otMonths,
+      dutyHoursPerDay: updated.dutyHoursPerDay,
     };
 
     return successResponse(settings);

@@ -103,6 +103,12 @@ model Company {
   outTime        String   @default("18:30") // HH:mm format, e.g. "18:30"
   graceMinutes   Int      @default(15)      // Grace period in minutes (e.g. 15 = up to 9:45 is OK)
   lateThreshold  Int      @default(3)       // Number of late arrivals before half-day kicks in
+  // Saturday off rules
+  saturdayOffRule String   @default("2nd_4th") // none | all | 2nd_4th | 2nd | 4th
+  // Overtime settings
+  otEnabled      Boolean  @default(false)   // Whether OT pay is active
+  otMonths       String[] @default([])      // Months where OT is paid, e.g. ["2026-03", "2026-12"]
+  dutyHoursPerDay Float   @default(8)       // Standard duty hours for OT calculation
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -263,6 +269,13 @@ model Attendance {
   isLate         Boolean          @default(false) // True if checked in after inTime + graceMinutes
   lateByMinutes  Int              @default(0)     // How many minutes late (0 if on time)
   isHalfDay      Boolean          @default(false) // True if this is the 4th+ late arrival in the month
+  // Holiday / Saturday work
+  isHolidayWork  Boolean          @default(false) // Checked in on a holiday or off-Saturday
+  holidayReason  String?          // "holiday: Diwali" or "saturday_off: 2nd Saturday"
+  // Overtime pay
+  otEligible     Boolean          @default(false) // OT was enabled this month
+  otRatePerHour  Float?           // Calculated: netSalary / (dutyHours * workingDays)
+  otAmount       Float?           // overtimeHours * otRatePerHour
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
