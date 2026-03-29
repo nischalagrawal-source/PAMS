@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Radar,
@@ -174,34 +174,64 @@ export default function GeoFencesPage() {
   };
 
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<{ latitude: number; longitude: number; displayName: string }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  const handleGeocodeAddress = async () => {
-    if (!form.address.trim()) {
-      setFormError("Please enter address before fetching coordinates");
+  // Close suggestions on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const searchAddress = useCallback(async (query: string) => {
+    if (query.trim().length < 3) {
+      setSuggestions([]);
       return;
     }
-    setFormError("");
     setIsGeocoding(true);
     try {
       const res = await fetch("/api/admin/geofences/geocode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: form.address }),
+        body: JSON.stringify({ address: query }),
       });
       const json = await res.json();
-      if (!json.success) {
-        throw new Error(json.error || "Failed to geocode address");
+      if (json.success && Array.isArray(json.data)) {
+        setSuggestions(json.data);
+        setShowSuggestions(true);
+      } else {
+        setSuggestions([]);
       }
-      setForm((prev) => ({
-        ...prev,
-        latitude: Number(json.data.latitude).toFixed(6),
-        longitude: Number(json.data.longitude).toFixed(6),
-      }));
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to geocode address");
+    } catch {
+      setSuggestions([]);
     } finally {
       setIsGeocoding(false);
     }
+  }, []);
+
+  const handleAddressChange = (value: string) => {
+    setForm((p) => ({ ...p, address: value }));
+    setFormError("");
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => searchAddress(value), 400);
+  };
+
+  const handleSelectSuggestion = (s: { latitude: number; longitude: number; displayName: string }) => {
+    setForm((prev) => ({
+      ...prev,
+      address: s.displayName,
+      latitude: s.latitude.toFixed(6),
+      longitude: s.longitude.toFixed(6),
+    }));
+    setShowSuggestions(false);
+    setSuggestions([]);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -260,24 +290,38 @@ export default function GeoFencesPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
-                <textarea
-                  value={form.address}
-                  onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                  placeholder="Paste full office/client address"
-                  rows={2}
-                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleGeocodeAddress}
-                    disabled={isGeocoding}
-                    className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950"
-                  >
-                    {isGeocoding ? "Fetching..." : "Get Coordinates from Address"}
-                  </button>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Search Address</label>
+                <div className="relative" ref={suggestionsRef}>
+                  <input
+                    type="text"
+                    value={form.address}
+                    onChange={(e) => handleAddressChange(e.target.value)}
+                    onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                    placeholder="Type to search... e.g. Bhartiya Textiles, Mumbai"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  />
+                  {isGeocoding && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 size={16} className="animate-spin text-gray-400" />
+                    </div>
+                  )}
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                      {suggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => handleSelectSuggestion(s)}
+                          className="flex w-full items-start gap-2 px-4 py-3 text-left text-sm text-gray-700 hover:bg-green-50 dark:text-gray-300 dark:hover:bg-green-950/30"
+                        >
+                          <MapPin size={14} className="mt-0.5 shrink-0 text-green-500" />
+                          <span className="line-clamp-2">{s.displayName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                <p className="mt-1 text-xs text-gray-500">Start typing and select from suggestions to auto-fill coordinates</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

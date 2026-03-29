@@ -9,7 +9,7 @@ import {
 } from "@/lib/api-utils";
 
 const geocodeSchema = z.object({
-  address: z.string().min(5, "Address is too short"),
+  address: z.string().min(2, "Address is too short"),
 });
 
 export async function POST(req: NextRequest) {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const address = parsed.data.address.trim();
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=in&q=${encodeURIComponent(address)}`;
 
     const resp = await fetch(url, {
       headers: {
@@ -48,19 +48,17 @@ export async function POST(req: NextRequest) {
       return errorResponse("No coordinates found for this address", 404);
     }
 
-    const first = data[0];
-    const latitude = Number(first.lat);
-    const longitude = Number(first.lon);
+    const results = data.map((item) => ({
+      latitude: Number(item.lat),
+      longitude: Number(item.lon),
+      displayName: item.display_name || address,
+    })).filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude));
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return errorResponse("Invalid coordinates returned by geocoding provider", 502);
+    if (results.length === 0) {
+      return errorResponse("No valid coordinates found", 404);
     }
 
-    return successResponse({
-      latitude,
-      longitude,
-      displayName: first.display_name || address,
-    });
+    return successResponse(results);
   } catch (err) {
     console.error("[POST /api/admin/geofences/geocode]", err);
     return errorResponse("Failed to geocode address", 500);
