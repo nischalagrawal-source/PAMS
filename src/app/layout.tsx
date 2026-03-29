@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   title: "P&AMS — Performance & Attendance Management System",
   description: "Multi-tenant performance tracking, attendance management, and HR operations platform",
   manifest: "/manifest.json",
+  themeColor: "#3b82f6",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "P&AMS",
+  },
 };
 
 export default function RootLayout({

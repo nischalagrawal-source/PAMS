@@ -116,6 +116,7 @@ model Company {
   anomalyReports     AnomalyReport[]
   salarySlips        SalarySlip[]
   offerLetterTemplates OfferLetterTemplate[]
+  holidays           Holiday[]
 
   @@map("companies")
 }
@@ -164,6 +165,7 @@ model User {
   offerLetters        OfferLetter[]
   notifications       Notification[]
   anomalyRecipients   AnomalyRule[]        @relation("AnomalyRecipients")
+  shift               UserShift?
 
   @@unique([companyId, employeeCode])
   @@index([companyId])
@@ -604,4 +606,43 @@ model AnomalyReport {
   @@unique([companyId, date])
   @@index([companyId, date])
   @@map("anomaly_reports")
+}
+
+// ============================================================
+// HOLIDAYS / FESTIVAL LEAVES
+// ============================================================
+
+model Holiday {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String   // "Republic Day", "Diwali", "Holi", etc.
+  date      DateTime @db.Date
+  isOptional Boolean @default(false) // Optional (restricted) vs mandatory holiday
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, date])
+  @@index([companyId, date])
+  @@map("holidays")
+}
+
+// ============================================================
+// USER SHIFT OVERRIDES (per-user in/out timing)
+// ============================================================
+
+model UserShift {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  inTime       String   // HH:mm format, e.g. "10:00"
+  outTime      String   // HH:mm format, e.g. "19:00"
+  graceMinutes Int?     // null = use company default
+  label        String?  // "Morning Shift", "Evening Shift", etc.
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_shifts")
 }

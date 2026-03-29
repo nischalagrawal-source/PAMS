@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { InstallAppBanner } from "@/components/install-app-banner";
 import {
   useTodayAttendance,
   useAttendanceList,
@@ -150,6 +151,9 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
+      {/* Install App Banner (mobile) */}
+      <InstallAppBanner />
+
       {/* Page header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/25">

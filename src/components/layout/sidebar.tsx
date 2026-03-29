@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Settings2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,6 +45,7 @@ const iconMap: Record<string, LucideIcon> = {
   Shield,
   AlertTriangle,
   Clock,
+  Settings2,
 };
 
 interface SidebarProps {

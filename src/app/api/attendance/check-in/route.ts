@@ -58,6 +58,25 @@ export async function POST(req: NextRequest) {
       select: { inTime: true, graceMinutes: true, lateThreshold: true },
     });
 
+    // Check if today is a holiday
+    const holiday = await prisma.holiday.findUnique({
+      where: { companyId_date: { companyId: session.user.companyId, date: today } },
+    });
+    if (holiday && !holiday.isOptional) {
+      return errorResponse(`Today is a holiday: ${holiday.name}. Check-in not required.`, 400);
+    }
+
+    // Fetch user's shift override (per-user in/out timing)
+    const userShift = await prisma.userShift.findUnique({
+      where: { userId },
+      select: { inTime: true, outTime: true, graceMinutes: true },
+    });
+
+    // Resolve effective timing: user shift overrides company defaults
+    const effectiveInTime = userShift?.inTime ?? company?.inTime ?? "09:30";
+    const effectiveGraceMinutes = userShift?.graceMinutes ?? company?.graceMinutes ?? 15;
+    const effectiveLateThreshold = company?.lateThreshold ?? 3;
+
     // Fetch user's attendance restrictions
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -117,16 +136,14 @@ export async function POST(req: NextRequest) {
     let lateByMinutes = 0;
     let isHalfDay = false;
 
-    if (company) {
-      const deadline = parseTimeToToday(company.inTime);
-      deadline.setMinutes(deadline.getMinutes() + company.graceMinutes);
-      // deadline is now inTime + graceMinutes (e.g., 9:30 + 15 = 9:45)
+    {
+      const deadline = parseTimeToToday(effectiveInTime);
+      deadline.setMinutes(deadline.getMinutes() + effectiveGraceMinutes);
 
       if (now > deadline) {
         isLate = true;
         lateByMinutes = Math.ceil((now.getTime() - deadline.getTime()) / (1000 * 60));
 
-        // Count how many times this user was late this month (before today)
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const lateCountThisMonth = await prisma.attendance.count({
           where: {
@@ -136,11 +153,8 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // Repeating cycle: every (threshold+1)th late arrival is a half day
-        // e.g., threshold=3: late #4 = half day, #5-7 normal, #8 = half day, etc.
-        // This late will be the (lateCountThisMonth + 1)th late arrival
         const thisLateNumber = lateCountThisMonth + 1;
-        const cycleLength = company.lateThreshold + 1; // 3+1 = 4
+        const cycleLength = effectiveLateThreshold + 1;
         if (thisLateNumber % cycleLength === 0) {
           isHalfDay = true;
         }
@@ -175,7 +189,7 @@ export async function POST(req: NextRequest) {
       ? `Checked in with warning: ${suspiciousReason}`
       : "Checked in successfully";
     if (isHalfDay) {
-      message = `Checked in — marked as HALF DAY (${lateByMinutes} min late, ${company!.lateThreshold}+ late arrivals this month)`;
+      message = `Checked in — marked as HALF DAY (${lateByMinutes} min late, ${effectiveLateThreshold}+ late arrivals this month)`;
     } else if (isLate) {
       message = `Checked in — LATE by ${lateByMinutes} minutes`;
     }

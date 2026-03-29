@@ -2,7 +2,7 @@
   "name": "P&AMS — Performance & Attendance Management",
   "short_name": "P&AMS",
   "description": "Performance & Attendance Management System",
-  "start_url": "/",
+  "start_url": "/attendance",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#3b82f6",
@@ -19,6 +19,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mark Attendance",
+      "short_name": "Attendance",
+      "description": "Check in or check out",
+      "url": "/attendance",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

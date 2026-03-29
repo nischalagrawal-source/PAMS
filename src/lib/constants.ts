@@ -186,6 +186,12 @@ export const ADMIN_NAV_ITEMS = [
     feature: "admin_company_settings" as FeatureKey,
   },
   {
+    title: "Rules & Policies",
+    href: "/admin/rules",
+    icon: "Settings2",
+    feature: "admin_company_settings" as FeatureKey,
+  },
+  {
     title: "Leave Policies",
     href: "/admin/leave-policies",
     icon: "CalendarOff",
