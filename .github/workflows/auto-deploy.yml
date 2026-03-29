@@ -61,88 +61,8 @@ jobs:
           command_timeout: 40m
           script: |
             set -e
-            export APP_DIR="/var/www/pams"
-
-            echo "=== Checking prerequisites ==="
-            echo "Node: $(node -v 2>&1 || echo 'NOT FOUND')"
-            echo "npm: $(npm -v 2>&1 || echo 'NOT FOUND')"
-            echo "git: $(git --version 2>&1 || echo 'NOT FOUND')"
-            echo "pm2: $(pm2 -v 2>&1 || echo 'NOT FOUND')"
-            free -m 2>/dev/null || echo "free command not available"
-            echo ""
-
-            if [ ! -d "$APP_DIR/.git" ]; then
-              echo "ERROR: $APP_DIR is not a git repository"
-              exit 1
-            fi
-
-            cd "$APP_DIR"
-
-            echo "=== Ensuring swap ==="
-            if [ "$(swapon --show --noheadings 2>/dev/null | wc -l)" -eq 0 ]; then
-              echo "Creating 2G swap..."
-              if [ -f /swapfile ]; then swapoff /swapfile 2>/dev/null || true; rm -f /swapfile; fi
-              fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
-              chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-              echo "Swap enabled"
-            else
-              echo "Swap already active"
-            fi
-
-            echo "=== Pulling latest code ==="
-            git fetch origin master
-            git reset --hard origin/master
-            echo "Now at: $(git log --oneline -1)"
-
-            echo "=== Checking .env ==="
-            if [ ! -f .env ]; then
-              echo "ERROR: .env file missing!"
-              exit 1
-            fi
-            echo ".env exists ($(wc -l < .env) lines)"
-
-            echo "=== Installing dependencies ==="
-            npm ci --production=false 2>&1
-
-            echo "=== Syncing database schema ==="
-            npx prisma db push 2>&1
-
-            echo "=== Generating Prisma client ==="
-            npx prisma generate 2>&1
-
-            echo "=== Building app ==="
-            rm -rf .next
-            export NODE_OPTIONS="--max-old-space-size=1536"
-            npm run build 2>&1
-
-            echo "=== Restarting PM2 ==="
-            mkdir -p /var/log/pams
-            pm2 restart pams 2>&1 || pm2 start ecosystem.config.js 2>&1
-            pm2 save 2>&1
-            pm2 startup systemd -u root --hp /root 2>/dev/null || true
-
-            echo "=== Verifying app health ==="
-            HEALTH_URL="http://127.0.0.1:3000/api/health"
-            OK=0
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              CODE="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$HEALTH_URL" || true)"
-              if [ "$CODE" = "200" ]; then
-                OK=1
-                break
-              fi
-              echo "Health check attempt $i failed (HTTP $CODE). Retrying..."
-              sleep 3
-            done
-
-            if [ "$OK" -ne 1 ]; then
-              echo "ERROR: Health check failed after deployment"
-              exit 1
-            fi
-
-            echo ""
-            echo "=== DEPLOY COMPLETE ==="
-            echo "App running at http://localhost:3000"
-            pm2 status
+            cd /var/www/pams
+            bash deploy/deploy.sh master "http://127.0.0.1:3000/api/health"
 
       - name: Preflight staging SSH connectivity
         if: github.ref == 'refs/heads/staging'
@@ -188,34 +108,8 @@ jobs:
           command_timeout: 20m
           script: |
             set -e
-            export APP_DIR="/var/www/pams"
-
-            if [ ! -d "$APP_DIR/.git" ]; then
-              echo "ERROR: $APP_DIR is not a git repository"
-              exit 1
-            fi
-
-            cd "$APP_DIR"
-            git fetch origin staging
-            git reset --hard origin/staging
-
-            npm ci --production=false 2>&1
-            npx prisma db push 2>&1
-            npx prisma generate 2>&1
-            rm -rf .next
-            export NODE_OPTIONS="--max-old-space-size=1536"
-            npm run build 2>&1
-            pm2 restart pams 2>&1 || pm2 start ecosystem.config.js 2>&1
-            pm2 save 2>&1
-
-            HEALTH_URL="http://127.0.0.1:3000/api/health"
-            CODE="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$HEALTH_URL" || true)"
-            if [ "$CODE" != "200" ]; then
-              echo "ERROR: Staging health check failed (HTTP $CODE)"
-              exit 1
-            fi
-
-            echo "=== STAGING DEPLOY COMPLETE ==="
+            cd /var/www/pams
+            bash deploy/deploy.sh staging "http://127.0.0.1:3000/api/health"
 
       - name: Notify Slack (production)
         if: always() && github.ref == 'refs/heads/master'
