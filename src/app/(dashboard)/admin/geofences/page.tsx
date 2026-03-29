@@ -174,7 +174,7 @@ export default function GeoFencesPage() {
   };
 
   const [isGeocoding, setIsGeocoding] = useState(false);
-  const [suggestions, setSuggestions] = useState<Array<{ latitude: number; longitude: number; displayName: string }>>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ latitude: number; longitude: number; displayName: string; placeId?: string }>>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -223,15 +223,49 @@ export default function GeoFencesPage() {
     searchTimeoutRef.current = setTimeout(() => searchAddress(value), 400);
   };
 
-  const handleSelectSuggestion = (s: { latitude: number; longitude: number; displayName: string }) => {
-    setForm((prev) => ({
-      ...prev,
-      address: s.displayName,
-      latitude: s.latitude.toFixed(6),
-      longitude: s.longitude.toFixed(6),
-    }));
+  const handleSelectSuggestion = async (s: { latitude: number; longitude: number; displayName: string; placeId?: string }) => {
+    setForm((prev) => ({ ...prev, address: s.displayName }));
     setShowSuggestions(false);
     setSuggestions([]);
+
+    // If suggestion already has coordinates (Nominatim fallback), use them directly
+    if (s.latitude !== 0 && s.longitude !== 0) {
+      setForm((prev) => ({
+        ...prev,
+        address: s.displayName,
+        latitude: s.latitude.toFixed(6),
+        longitude: s.longitude.toFixed(6),
+      }));
+      return;
+    }
+
+    // Google Places: need a second call with placeId to get coordinates
+    if (s.placeId) {
+      setIsGeocoding(true);
+      try {
+        const res = await fetch("/api/admin/geofences/geocode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: s.displayName, placeId: s.placeId }),
+        });
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const place = json.data[0];
+          setForm((prev) => ({
+            ...prev,
+            address: place.displayName || s.displayName,
+            latitude: Number(place.latitude).toFixed(6),
+            longitude: Number(place.longitude).toFixed(6),
+          }));
+        } else {
+          setFormError("Could not get coordinates for selected place");
+        }
+      } catch {
+        setFormError("Failed to fetch coordinates");
+      } finally {
+        setIsGeocoding(false);
+      }
+    }
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
