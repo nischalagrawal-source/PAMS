@@ -62,7 +62,6 @@ export async function POST(req: NextRequest) {
     }
 
     // --- Google Places Autocomplete ---
-    console.log("[GEOCODE] GOOGLE_MAPS_KEY present:", !!GOOGLE_MAPS_KEY, "length:", GOOGLE_MAPS_KEY.length);
     if (GOOGLE_MAPS_KEY) {
       const acUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(address.trim())}&components=country:in&key=${GOOGLE_MAPS_KEY}`;
       const acResp = await fetch(acUrl, { cache: "no-store" });
@@ -71,7 +70,6 @@ export async function POST(req: NextRequest) {
         predictions?: Array<{ place_id: string; description: string }>;
         error_message?: string;
       };
-      console.log("[GEOCODE] Google response status:", acData.status, acData.error_message || "");
 
       if (acData.status === "OK" && acData.predictions && acData.predictions.length > 0) {
         const results = acData.predictions.slice(0, 5).map((p) => ({
