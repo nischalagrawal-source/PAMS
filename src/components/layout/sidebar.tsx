@@ -154,7 +154,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           );
         })}
 
-        {/* Admin section */}}
+        {/* Admin section */}
         {showAdmin && (
           <>
             <div className="my-2 border-t border-gray-200 dark:border-gray-800" />
