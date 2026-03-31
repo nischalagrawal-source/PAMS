@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/types";
+import { cn } from "@/lib/utils";
 import {
   Bell,
   LogOut,
@@ -52,8 +53,11 @@ export function Topbar({ sidebarCollapsed, onMenuClick }: TopbarProps) {
 
   return (
     <header
-      className="fixed right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white/80 px-6 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/80"
-      style={{ left: sidebarCollapsed ? "4rem" : "16rem" }}
+      className={cn(
+        "fixed right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white/80 px-4 sm:px-6 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/80",
+        "left-0 lg:left-[var(--sidebar-width)]"
+      )}
+      style={{ "--sidebar-width": sidebarCollapsed ? "4rem" : "16rem" } as React.CSSProperties}
     >
       {/* Left side */}
       <div className="flex items-center gap-4">
@@ -63,11 +67,11 @@ export function Topbar({ sidebarCollapsed, onMenuClick }: TopbarProps) {
         >
           <Menu size={20} />
         </button>
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Welcome back, {user?.firstName || "User"}
+        <div className="min-w-0">
+          <h2 className="truncate text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+            Welcome, {user?.firstName || "User"}
           </h2>
-          <p className="text-sm text-gray-500" suppressHydrationWarning>
+          <p className="hidden sm:block text-sm text-gray-500" suppressHydrationWarning>
             {dateStr || "\u00A0"}
           </p>
         </div>
