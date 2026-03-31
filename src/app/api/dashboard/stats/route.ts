@@ -34,7 +34,123 @@ export async function GET() {
       : { companyId: companyId! };
 
     // ──────────────────────────────────────
-    // Run all queries in parallel
+    // STAFF gets personal stats only
+    // ──────────────────────────────────────
+    if (!isAdminOrAbove) {
+      const [
+        myAttendanceThisMonth,
+        myCheckedInToday,
+        myLateThisMonth,
+        myLeavesThisMonth,
+        myPendingLeaves,
+        activeTasks,
+        overdueTasks,
+        tasksCompletedThisWeek,
+        myOvertimeResult,
+        recentActivity,
+      ] = await Promise.all([
+        // My attendance this month
+        prisma.attendance.count({
+          where: { userId, date: { gte: startOfMonth } },
+        }),
+
+        // Am I checked in today?
+        prisma.attendance.findFirst({
+          where: { userId, date: today },
+          select: { checkInTime: true, checkOutTime: true, isLate: true },
+        }),
+
+        // My late count this month
+        prisma.attendance.count({
+          where: { userId, date: { gte: startOfMonth }, isLate: true },
+        }),
+
+        // My approved leaves this month
+        prisma.leaveRequest.count({
+          where: {
+            userId,
+            status: "APPROVED",
+            startDate: { gte: startOfMonth },
+          },
+        }),
+
+        // My pending leave requests
+        prisma.leaveRequest.count({
+          where: { userId, status: "PENDING" },
+        }),
+
+        // My active tasks
+        prisma.task.count({
+          where: { assignedToId: userId, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
+        }),
+
+        // My overdue tasks
+        prisma.task.count({
+          where: { assignedToId: userId, isOverdue: true, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
+        }),
+
+        // My tasks completed this week
+        prisma.task.count({
+          where: { assignedToId: userId, status: "COMPLETED", completedAt: { gte: startOfWeek } },
+        }),
+
+        // My overtime this month
+        prisma.attendance.aggregate({
+          _sum: { overtimeHours: true },
+          where: { userId, date: { gte: startOfMonth } },
+        }),
+
+        // My recent notifications
+        prisma.notification.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }),
+      ]);
+
+      const myOvertimeHours = Math.round(myOvertimeResult._sum.overtimeHours ?? 0);
+
+      const activityList = recentActivity.map((n: any) => {
+        const age = Date.now() - new Date(n.createdAt).getTime();
+        let time = "";
+        if (age < 60000) time = "Just now";
+        else if (age < 3600000) time = `${Math.round(age / 60000)} min ago`;
+        else if (age < 86400000) time = `${Math.round(age / 3600000)} hr ago`;
+        else time = new Date(n.createdAt).toLocaleDateString();
+
+        let type = "info";
+        if (n.type?.includes("complet") || n.type?.includes("check")) type = "success";
+        else if (n.type?.includes("anomal") || n.type?.includes("alert")) type = "warning";
+
+        return {
+          action: n.subject || n.type,
+          detail: n.message?.substring(0, 60),
+          time,
+          type,
+        };
+      });
+
+      return successResponse({
+        isPersonal: true,
+        stats: {
+          myAttendanceThisMonth,
+          checkedInToday: !!myCheckedInToday,
+          isLateToday: myCheckedInToday?.isLate ?? false,
+          lateCountThisMonth: myLateThisMonth,
+          myLeavesThisMonth,
+          myPendingLeaves,
+          activeTasks,
+          overdueTasks,
+          tasksCompletedThisWeek,
+          overtimeHours: myOvertimeHours,
+        },
+        recentActivity: activityList,
+        topPerformers: [],
+      });
+    }
+
+    // ──────────────────────────────────────
+    // Admin / above gets company-wide stats
     // ──────────────────────────────────────
     const [
       totalStaff,

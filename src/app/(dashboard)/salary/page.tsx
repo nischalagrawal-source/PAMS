@@ -206,6 +206,7 @@ export default function SalaryPage() {
               { label: "PF (Deduction)", value: -structure.pf, color: "text-red-600" },
               { label: "ESI (Deduction)", value: -structure.esi, color: "text-red-600" },
               { label: "Tax (Deduction)", value: -structure.tax, color: "text-red-600" },
+              ...(structure.securityDeposit > 0 ? [{ label: "Security Deposit", value: -structure.securityDeposit, color: "text-orange-600" }] : []),
             ].map((item) => (
               <div key={item.label} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
                 <p className="text-xs text-gray-500">{item.label}</p>

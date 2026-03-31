@@ -20,6 +20,8 @@ const updateSalaryStructureSchema = z.object({
   esi: z.number().min(0).default(0),
   tax: z.number().min(0).default(0),
   otherDeduct: z.number().min(0).default(0),
+  securityDeposit: z.number().min(0).default(0),
+  securityDepositStart: z.string().nullable().optional(),
   effectiveFrom: z.string().refine((v) => !isNaN(Date.parse(v)), {
     message: "Invalid date string",
   }),

@@ -25,6 +25,8 @@ interface SalaryStructure {
   esi: number;
   tax: number;
   otherDeduct: number;
+  securityDeposit: number;
+  securityDepositStart: string | null;
   netSalary: number;
   effectiveFrom: string;
   user?: User;
@@ -43,6 +45,8 @@ const emptyForm: Partial<FormData> = {
   esi: 0,
   tax: 0,
   otherDeduct: 0,
+  securityDeposit: 0,
+  securityDepositStart: null,
   effectiveFrom: new Date().toISOString().split("T")[0],
 };
 
@@ -123,6 +127,8 @@ export default function SalaryStructuresPage() {
       esi: structure.esi,
       tax: structure.tax,
       otherDeduct: structure.otherDeduct,
+      securityDeposit: structure.securityDeposit,
+      securityDepositStart: structure.securityDepositStart,
       effectiveFrom: structure.effectiveFrom.split("T")[0],
     });
     setEditingId(structure.id);
@@ -349,6 +355,39 @@ export default function SalaryStructuresPage() {
                 </div>
               </div>
 
+              {/* Security Deposit Section */}
+              <div className="space-y-4 border-t border-gray-200 pt-6 dark:border-gray-800">
+                <h4 className="font-semibold text-gray-900 dark:text-white">Security Deposit</h4>
+                <p className="text-xs text-gray-500">Deducted monthly for 12 months, refunded in the 13th month</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Monthly Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={form.securityDeposit || 0}
+                      onChange={(e) => setForm({ ...form, securityDeposit: parseFloat(e.target.value) || 0 })}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Start Month (YYYY-MM)</label>
+                    <input
+                      type="month"
+                      value={form.securityDepositStart || ""}
+                      onChange={(e) => setForm({ ...form, securityDepositStart: e.target.value || null })}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+                {(form.securityDeposit || 0) > 0 && (
+                  <div className="rounded-lg bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700 dark:bg-orange-950/30 dark:text-orange-400">
+                    ₹{form.securityDeposit}/month × 12 = ₹{(form.securityDeposit || 0) * 12} total (refunded in 13th month)
+                  </div>
+                )}
+              </div>
+
               {/* Effective Date */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Effective From</label>
@@ -414,6 +453,7 @@ export default function SalaryStructuresPage() {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Employee</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">Gross</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">Deductions</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">Sec. Deposit</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">Net</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-gray-300">Action</th>
                 </tr>
@@ -432,6 +472,9 @@ export default function SalaryStructuresPage() {
                       </td>
                       <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{formatCurrency(gross)}</td>
                       <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{formatCurrency(deductions)}</td>
+                      <td className="px-4 py-3 text-right text-orange-600 dark:text-orange-400">
+                        {structure.securityDeposit > 0 ? formatCurrency(structure.securityDeposit) + "/mo" : "—"}
+                      </td>
                       <td className="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">
                         {formatCurrency(structure.netSalary)}
                       </td>

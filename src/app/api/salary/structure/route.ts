@@ -21,6 +21,8 @@ const salaryStructureSchema = z.object({
   esi: z.number().min(0).default(0),
   tax: z.number().min(0).default(0),
   otherDeduct: z.number().min(0).default(0),
+  securityDeposit: z.number().min(0).default(0),
+  securityDepositStart: z.string().regex(/^\d{4}-\d{2}$/, "Must be YYYY-MM").nullable().optional(),
   effectiveFrom: z.string().refine((v) => !isNaN(Date.parse(v)), {
     message: "Invalid ISO date string",
   }),
@@ -109,6 +111,8 @@ export async function POST(req: NextRequest) {
       esi,
       tax,
       otherDeduct,
+      securityDeposit,
+      securityDepositStart,
       effectiveFrom,
     } = parsed.data;
 
@@ -124,7 +128,7 @@ export async function POST(req: NextRequest) {
       return errorResponse("User not found in your company", 404);
     }
 
-    // Calculate net salary
+    // Calculate net salary (security deposit is NOT subtracted from net — it's a separate line on slips)
     const netSalary =
       basic + hra + da + ta + specialAllow - pf - esi - tax - otherDeduct;
 
@@ -140,6 +144,8 @@ export async function POST(req: NextRequest) {
         esi,
         tax,
         otherDeduct,
+        securityDeposit: securityDeposit ?? 0,
+        securityDepositStart: securityDepositStart ?? null,
         netSalary,
         effectiveFrom: new Date(effectiveFrom),
       },
@@ -154,6 +160,8 @@ export async function POST(req: NextRequest) {
         esi,
         tax,
         otherDeduct,
+        securityDeposit: securityDeposit ?? 0,
+        securityDepositStart: securityDepositStart ?? null,
         netSalary,
         effectiveFrom: new Date(effectiveFrom),
       },

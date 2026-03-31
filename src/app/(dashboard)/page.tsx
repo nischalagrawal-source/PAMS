@@ -15,19 +15,29 @@ import {
 } from "lucide-react";
 
 interface DashboardStats {
+  isPersonal?: boolean;
   stats: {
-    totalStaff: number;
-    activeStaff: number;
-    presentToday: number;
-    attendancePercent: number;
+    // Admin stats
+    totalStaff?: number;
+    activeStaff?: number;
+    presentToday?: number;
+    attendancePercent?: number;
+    onLeaveToday?: number;
+    plannedLeaves?: number;
+    emergencyLeaves?: number;
+    anomalyCount?: number;
+    // Personal stats (staff)
+    myAttendanceThisMonth?: number;
+    checkedInToday?: boolean;
+    isLateToday?: boolean;
+    lateCountThisMonth?: number;
+    myLeavesThisMonth?: number;
+    myPendingLeaves?: number;
+    // Shared
     activeTasks: number;
     overdueTasks: number;
     tasksCompletedThisWeek: number;
-    onLeaveToday: number;
-    plannedLeaves: number;
-    emergencyLeaves: number;
     overtimeHours: number;
-    anomalyCount: number;
   };
   recentActivity: { action: string; detail: string; time: string; type: string; user?: string }[];
   topPerformers: { name: string; score: number; tier: string }[];
@@ -111,6 +121,7 @@ export default function DashboardPage() {
   const s = data?.stats;
   const activity = data?.recentActivity ?? [];
   const performers = data?.topPerformers ?? [];
+  const isPersonal = data?.isPersonal ?? false;
 
   return (
     <div className="space-y-6">
@@ -120,7 +131,7 @@ export default function DashboardPage() {
           Dashboard
         </h1>
         <p className="text-gray-500">
-          Overview of your performance and attendance metrics
+          {isPersonal ? "Your personal performance and attendance overview" : "Overview of your performance and attendance metrics"}
         </p>
       </div>
 
@@ -130,77 +141,137 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Stats grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Staff"
-          value={s?.totalStaff ?? 0}
-          subtitle={`${s?.activeStaff ?? 0} active`}
-          icon={Users}
-          color="blue"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Present Today"
-          value={s?.presentToday ?? 0}
-          subtitle={`${s?.attendancePercent ?? 0}% attendance`}
-          icon={MapPin}
-          color="green"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Active Tasks"
-          value={s?.activeTasks ?? 0}
-          subtitle={`${s?.overdueTasks ?? 0} overdue`}
-          icon={ListTodo}
-          color="purple"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Tasks Completed"
-          value={s?.tasksCompletedThisWeek ?? 0}
-          subtitle="This week"
-          icon={CheckCircle2}
-          color="indigo"
-          loading={isLoading}
-        />
-      </div>
+      {/* Stats grid — personal view for staff */}
+      {isPersonal ? (
+        <>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Today's Status"
+              value={s?.checkedInToday ? (s?.isLateToday ? "Late" : "Present") : "Not Checked In"}
+              subtitle={s?.checkedInToday ? "You are checked in" : "Mark your attendance"}
+              icon={MapPin}
+              color={s?.checkedInToday ? (s?.isLateToday ? "orange" : "green") : "red"}
+              loading={isLoading}
+            />
+            <StatCard
+              title="Attendance This Month"
+              value={s?.myAttendanceThisMonth ?? 0}
+              subtitle={`${s?.lateCountThisMonth ?? 0} late days`}
+              icon={CheckCircle2}
+              color="blue"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Active Tasks"
+              value={s?.activeTasks ?? 0}
+              subtitle={`${s?.overdueTasks ?? 0} overdue`}
+              icon={ListTodo}
+              color="purple"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Tasks Completed"
+              value={s?.tasksCompletedThisWeek ?? 0}
+              subtitle="This week"
+              icon={CheckCircle2}
+              color="indigo"
+              loading={isLoading}
+            />
+          </div>
 
-      {/* Second row */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="On Leave"
-          value={s?.onLeaveToday ?? 0}
-          subtitle={`${s?.plannedLeaves ?? 0} planned, ${s?.emergencyLeaves ?? 0} emergency`}
-          icon={CalendarOff}
-          color="red"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Overtime Hours"
-          value={s?.overtimeHours ?? 0}
-          subtitle="This month total"
-          icon={Clock}
-          color="cyan"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Anomalies"
-          value={s?.anomalyCount ?? 0}
-          subtitle="This month"
-          icon={AlertTriangle}
-          color="pink"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Avg Performance"
-          value={performers.length > 0 ? `${Math.round(performers.reduce((a, p) => a + p.score, 0) / performers.length)}%` : "—"}
-          subtitle={performers.length > 0 ? "Based on scores" : "No data yet"}
-          icon={TrendingUp}
-          color="orange"
-          loading={isLoading}
-        />
-      </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Leaves This Month"
+              value={s?.myLeavesThisMonth ?? 0}
+              subtitle={`${s?.myPendingLeaves ?? 0} pending`}
+              icon={CalendarOff}
+              color="red"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Overtime Hours"
+              value={s?.overtimeHours ?? 0}
+              subtitle="This month"
+              icon={Clock}
+              color="cyan"
+              loading={isLoading}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Admin/company-wide stats */}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Total Staff"
+              value={s?.totalStaff ?? 0}
+              subtitle={`${s?.activeStaff ?? 0} active`}
+              icon={Users}
+              color="blue"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Present Today"
+              value={s?.presentToday ?? 0}
+              subtitle={`${s?.attendancePercent ?? 0}% attendance`}
+              icon={MapPin}
+              color="green"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Active Tasks"
+              value={s?.activeTasks ?? 0}
+              subtitle={`${s?.overdueTasks ?? 0} overdue`}
+              icon={ListTodo}
+              color="purple"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Tasks Completed"
+              value={s?.tasksCompletedThisWeek ?? 0}
+              subtitle="This week"
+              icon={CheckCircle2}
+              color="indigo"
+              loading={isLoading}
+            />
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="On Leave"
+              value={s?.onLeaveToday ?? 0}
+              subtitle={`${s?.plannedLeaves ?? 0} planned, ${s?.emergencyLeaves ?? 0} emergency`}
+              icon={CalendarOff}
+              color="red"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Overtime Hours"
+              value={s?.overtimeHours ?? 0}
+              subtitle="This month total"
+              icon={Clock}
+              color="cyan"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Anomalies"
+              value={s?.anomalyCount ?? 0}
+              subtitle="This month"
+              icon={AlertTriangle}
+              color="pink"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Avg Performance"
+              value={performers.length > 0 ? `${Math.round(performers.reduce((a, p) => a + p.score, 0) / performers.length)}%` : "—"}
+              subtitle={performers.length > 0 ? "Based on scores" : "No data yet"}
+              icon={TrendingUp}
+              color="orange"
+              loading={isLoading}
+            />
+          </div>
+        </>
+      )}
 
       {/* Content sections */}
       <div className="grid gap-6 lg:grid-cols-2">

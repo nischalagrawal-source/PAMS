@@ -14,6 +14,8 @@ export interface SalaryStructure {
   esi: number;
   tax: number;
   otherDeduct: number;
+  securityDeposit: number;
+  securityDepositStart: string | null;
   netSalary: number;
   currency: string;
   effectiveFrom: string;

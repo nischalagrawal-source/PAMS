@@ -140,7 +140,27 @@ export async function POST(req: NextRequest) {
     const systemDeductions =
       structure.pf + structure.esi + structure.tax + structure.otherDeduct;
 
-    const systemNet = systemGross - systemDeductions;
+    // Security deposit calculation
+    let securityDepositDeduction = 0;
+    let securityDepositRefund = 0;
+    if (structure.securityDeposit > 0 && structure.securityDepositStart) {
+      const startDate = new Date(structure.securityDepositStart + "-01");
+      const slipDate = new Date(month + "-01");
+      const monthsDiff =
+        (slipDate.getFullYear() - startDate.getFullYear()) * 12 +
+        (slipDate.getMonth() - startDate.getMonth());
+
+      if (monthsDiff >= 0 && monthsDiff < 12) {
+        // Months 0-11: deduct security deposit
+        securityDepositDeduction = structure.securityDeposit;
+      } else if (monthsDiff === 12) {
+        // 13th month: refund the full accumulated amount
+        securityDepositRefund = structure.securityDeposit * 12;
+      }
+      // After the 13th month: no deduction or refund
+    }
+
+    const systemNet = systemGross - systemDeductions - securityDepositDeduction + securityDepositRefund;
 
     const systemBreakdown = {
       basic: structure.basic,
@@ -154,8 +174,10 @@ export async function POST(req: NextRequest) {
       esi: structure.esi,
       tax: structure.tax,
       otherDeduct: structure.otherDeduct,
+      securityDepositDeduction,
+      securityDepositRefund,
       gross: systemGross,
-      deductions: systemDeductions,
+      deductions: systemDeductions + securityDepositDeduction,
       net: systemNet,
     };
 

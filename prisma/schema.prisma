@@ -487,7 +487,10 @@ model SalaryStructure {
   esi          Float    @default(0)
   tax          Float    @default(0)
   otherDeduct  Float    @default(0)
-  netSalary    Float    // Calculated
+  // Security deposit: fixed amount deducted monthly for 12 months, refunded in 13th
+  securityDeposit     Float    @default(0)   // Monthly deduction amount (0 = not applicable)
+  securityDepositStart String?              // Start month "YYYY-MM" (deductions begin here)
+  netSalary    Float    // Calculated (does NOT include security deposit deduction)
   currency     String   @default("INR")
   effectiveFrom DateTime
   createdAt    DateTime @default(now())
