@@ -89,8 +89,8 @@ export async function POST(req: NextRequest) {
       if (distance > allowedDistance) {
         const outsideReason = `Checkout outside assigned fence (${Math.round(distance)}m from center, allowed ${allowedDistance}m)`;
 
-        // Client users may move after client visit; allow checkout but flag for review.
-        if (attendance.user.workMode === "client") {
+        // Client and hybrid users may move after approved client visits; allow checkout but flag for review.
+        if (["client", "hybrid"].includes(attendance.user.workMode)) {
           outsideFenceFlagReason = outsideReason;
         } else {
           await prisma.attendance.update({

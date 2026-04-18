@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import pkg from "../../../../package.json";
 
 // Allow health checks to run without authentication
 export const dynamic = "force-dynamic";
@@ -20,6 +21,8 @@ export async function GET() {
       {
         ok: true,
         status: "healthy",
+        version: pkg.version,
+        buildTime: new Date().toISOString(),
         uptimeSec: Math.floor(process.uptime()),
         timestamp: new Date().toISOString(),
         latencyMs: Date.now() - startedAt,
@@ -33,6 +36,8 @@ export async function GET() {
       {
         ok: false,
         status: "unhealthy",
+        version: pkg.version,
+        buildTime: new Date().toISOString(),
         timestamp: new Date().toISOString(),
         latencyMs: Date.now() - startedAt,
         error: message,

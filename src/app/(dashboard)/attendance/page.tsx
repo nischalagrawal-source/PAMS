@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Loader2,
   Navigation,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -30,7 +31,10 @@ import {
   useCheckIn,
   useCheckOut,
   useLocationPing,
+  useClientVisitCheckIn,
 } from "@/hooks/use-attendance";
+import { SelfieCapture } from "@/components/selfie-capture";
+import { generateDeviceFingerprint } from "@/lib/device-fingerprint";
 
 function formatTime(dateStr: string | null) {
   if (!dateStr) return "--:--";
@@ -89,6 +93,33 @@ function getStatusBadge(status: string) {
   );
 }
 
+function parseClientVisitEntries(notes: string | null) {
+  if (!notes) return [] as Array<{
+    timestamp: string;
+    fenceLabel: string;
+    actualTravelMinutes: number | null;
+    estimatedTravelMinutes: number | null;
+    isReasonable: boolean;
+  }>;
+
+  return notes
+    .split("\n")
+    .filter((line) => line.startsWith("[CLIENT_VISIT] "))
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line.replace("[CLIENT_VISIT] ", "")) as {
+          timestamp: string;
+          fenceLabel: string;
+          actualTravelMinutes: number | null;
+          estimatedTravelMinutes: number | null;
+          isReasonable: boolean;
+        }];
+      } catch {
+        return [];
+      }
+    });
+}
+
 export default function AttendancePage() {
   const { data: session } = useSession();
   const geo = useGeolocation();
@@ -96,8 +127,13 @@ export default function AttendancePage() {
   const checkInMutation = useCheckIn();
   const checkOutMutation = useCheckOut();
   const pingMutation = useLocationPing();
+  const clientVisitMutation = useClientVisitCheckIn();
 
   const [page, setPage] = useState(1);
+  const [showSelfieCapture, setShowSelfieCapture] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [geoMessage, setGeoMessage] = useState<{ tone: "info" | "alert"; text: string } | null>(null);
+  const profilePhotoUrl = session?.user?.profilePhoto ?? null;
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
     to: new Date().toISOString().split("T")[0],
@@ -113,31 +149,80 @@ export default function AttendancePage() {
   const today = todayQuery.data;
   const isCheckedIn = !!today?.checkInTime && !today?.checkOutTime;
   const isCheckedOut = !!today?.checkOutTime;
+  const clientVisits = parseClientVisitEntries(today?.notes ?? null);
+  const lastClientVisit = clientVisits.length > 0 ? clientVisits[clientVisits.length - 1] : null;
 
-  // Periodic location ping when checked in (every 30 minutes)
+  // Duty-hours-only location ping when checked in.
   useEffect(() => {
-    if (!isCheckedIn) return;
+    if (!isCheckedIn) {
+      setGeoMessage(null);
+      return;
+    }
 
-    const interval = setInterval(async () => {
+    let cancelled = false;
+
+    const sendPing = async () => {
       try {
         const pos = await geo.getCurrentPosition();
-        pingMutation.mutate({ latitude: pos.latitude, longitude: pos.longitude });
+        const result = await pingMutation.mutateAsync({ latitude: pos.latitude, longitude: pos.longitude });
+        if (cancelled || !result?.message) return;
+        setGeoMessage({
+          tone: result.alertTriggered || !result.insideFence ? "alert" : "info",
+          text: result.message,
+        });
       } catch {
-        // Silently fail — ping is best-effort
+        // Silently fail — ping is best-effort during active duty only
       }
-    }, 30 * 60 * 1000); // 30 minutes
+    };
 
-    return () => clearInterval(interval);
-  }, [isCheckedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+    void sendPing();
+    const interval = setInterval(() => {
+      void sendPing();
+    }, 5 * 60 * 1000); // 5 minutes while checked in
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [geo, isCheckedIn, pingMutation]);
 
   const handleCheckIn = useCallback(async () => {
     try {
       const pos = await geo.getCurrentPosition();
-      checkInMutation.mutate({ latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy });
+      setPendingLocation({ latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy });
+      setShowSelfieCapture(true);
     } catch {
       // Error is shown via geo.error
     }
-  }, [geo, checkInMutation]);
+  }, [geo]);
+
+  const handleSelfieCapture = useCallback(async (selfieBase64: string, faceMatchScore: number | null) => {
+    setShowSelfieCapture(false);
+    if (!pendingLocation) return;
+    try {
+      const fingerprint = await generateDeviceFingerprint();
+      checkInMutation.mutate({
+        ...pendingLocation,
+        deviceFingerprint: fingerprint,
+        selfie: selfieBase64,
+        faceMatchScore,
+      });
+    } catch {
+      // Fingerprint generation failed — still attempt with fallback
+      checkInMutation.mutate({
+        ...pendingLocation,
+        deviceFingerprint: "unsupported-" + Date.now(),
+        selfie: selfieBase64,
+        faceMatchScore,
+      });
+    }
+    setPendingLocation(null);
+  }, [pendingLocation, checkInMutation]);
+
+  const handleSelfieCancelled = useCallback(() => {
+    setShowSelfieCapture(false);
+    setPendingLocation(null);
+  }, []);
 
   const handleCheckOut = useCallback(async () => {
     try {
@@ -148,7 +233,22 @@ export default function AttendancePage() {
     }
   }, [geo, checkOutMutation]);
 
-  const isLoading = checkInMutation.isPending || checkOutMutation.isPending || geo.loading;
+  const handleClientVisitCheckIn = useCallback(async () => {
+    try {
+      const pos = await geo.getCurrentPosition();
+      const result = await clientVisitMutation.mutateAsync({ latitude: pos.latitude, longitude: pos.longitude });
+      setGeoMessage({
+        tone: result.reviewRequired ? "alert" : "info",
+        text: result.reviewRequired
+          ? `${result.currentSite} recorded, but travel timing needs manager review.`
+          : `Visit ${result.visitCount} recorded at ${result.currentSite}.`,
+      });
+    } catch {
+      // Error is shown via mutation state
+    }
+  }, [clientVisitMutation, geo]);
+
+  const isLoading = checkInMutation.isPending || checkOutMutation.isPending || clientVisitMutation.isPending || geo.loading;
 
   return (
     <div className="space-y-6">
@@ -170,6 +270,24 @@ export default function AttendancePage() {
 
       {/* Location permission guide */}
       <LocationPermissionGuide />
+
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
+        <p className="font-semibold">Privacy-safe location checks</p>
+        <p className="mt-1">Location validation runs only while you are checked in for duty and stops automatically after check-out.</p>
+      </div>
+
+      {geoMessage && (
+        <div
+          className={cn(
+            "rounded-2xl border px-4 py-3 text-sm",
+            geoMessage.tone === "alert"
+              ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+              : "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300"
+          )}
+        >
+          {geoMessage.text}
+        </div>
+      )}
 
       {/* Today's Status Card */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -202,9 +320,27 @@ export default function AttendancePage() {
           </div>
 
           {/* Error messages */}
-          {(checkInMutation.error || checkOutMutation.error) && (
+          {(checkInMutation.error || checkOutMutation.error || clientVisitMutation.error) && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
-              {checkInMutation.error?.message || checkOutMutation.error?.message}
+              {checkInMutation.error?.message || checkOutMutation.error?.message || clientVisitMutation.error?.message}
+            </div>
+          )}
+
+          {/* Selfie capture overlay */}
+          {showSelfieCapture && (
+            <div className="mb-4 rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+              <div className="mb-3 flex items-center gap-2">
+                <Camera size={18} className="text-blue-600" />
+                <h4 className="font-semibold text-blue-900 dark:text-blue-300">Identity Verification</h4>
+              </div>
+              <p className="mb-4 text-sm text-blue-700 dark:text-blue-400">
+                Please take a selfie to verify your identity. This is required for attendance check-in.
+              </p>
+              <SelfieCapture
+                onCapture={handleSelfieCapture}
+                onCancel={handleSelfieCancelled}
+                profilePhotoUrl={profilePhotoUrl}
+              />
             </div>
           )}
 
@@ -222,14 +358,24 @@ export default function AttendancePage() {
                   {isLoading ? "Getting Location..." : "Check In"}
                 </button>
               ) : isCheckedIn ? (
-                <button
-                  onClick={handleCheckOut}
-                  disabled={isLoading}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-8 py-4 sm:py-3 text-lg sm:text-base font-semibold text-white shadow-lg shadow-red-500/25 transition hover:from-red-500 hover:to-rose-500 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                >
-                  {isLoading ? <Loader2 size={20} className="animate-spin" /> : <LogOut size={20} />}
-                  {isLoading ? "Getting Location..." : "Check Out"}
-                </button>
+                <div className="flex w-full flex-col gap-3 sm:w-auto">
+                  <button
+                    onClick={handleCheckOut}
+                    disabled={isLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-8 py-4 sm:py-3 text-lg sm:text-base font-semibold text-white shadow-lg shadow-red-500/25 transition hover:from-red-500 hover:to-rose-500 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  >
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <LogOut size={20} />}
+                    {isLoading ? "Getting Location..." : "Check Out"}
+                  </button>
+                  <button
+                    onClick={handleClientVisitCheckIn}
+                    disabled={isLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-6 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50 sm:w-auto"
+                  >
+                    <Navigation size={18} />
+                    Client Visit Check-In
+                  </button>
+                </div>
               ) : (
                 <div className="rounded-xl bg-gray-100 px-8 py-4 sm:py-3 text-center dark:bg-gray-800">
                   <p className="font-medium text-gray-500">Day Complete</p>
@@ -271,7 +417,7 @@ export default function AttendancePage() {
 
           {/* Today's details */}
           {today && (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 rounded-lg bg-gray-50 p-3 sm:p-4 dark:bg-gray-900 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 rounded-lg bg-gray-50 p-3 sm:p-4 dark:bg-gray-900 sm:grid-cols-3 lg:grid-cols-7">
               <div>
                 <p className="text-xs font-medium text-gray-500">Location</p>
                 <div className="mt-1 flex items-center gap-1.5">
@@ -308,6 +454,33 @@ export default function AttendancePage() {
                 <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
                   {today.overtimeHours ? formatHours(today.overtimeHours) : "None"}
                 </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">Client Visits</p>
+                <p className={cn("mt-1 text-sm font-medium", clientVisits.length > 0 ? "text-blue-600" : "text-gray-500")}>
+                  {clientVisits.length}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {lastClientVisit && (
+            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Latest client checkpoint</p>
+                  <p className="mt-1 text-sm text-blue-700 dark:text-blue-400">
+                    {lastClientVisit.fenceLabel} at {new Date(lastClientVisit.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+                <span className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-semibold",
+                  lastClientVisit.isReasonable
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                )}>
+                  {lastClientVisit.isReasonable ? "Travel OK" : "Needs Review"}
+                </span>
               </div>
             </div>
           )}

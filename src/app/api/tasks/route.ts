@@ -8,6 +8,7 @@ import {
 } from "@/lib/api-utils";
 import { z } from "zod";
 import { UserRole, TaskStatus } from "@/generated/prisma/client";
+import { notifyTaskAssigned } from "@/lib/notifications";
 
 // ── validation ───────────────────────────────────────────────
 
@@ -112,7 +113,12 @@ export async function GET(req: NextRequest) {
 
     // Kanban summary counts (scoped to the same company filter)
     const companyFilter = {
-      assignedTo: { companyId: session.user.companyId },
+      assignedTo: {
+        companyId: session.user.companyId,
+        ...((session.user.role === UserRole.BRANCH_ADMIN || session.user.role === UserRole.REVIEWER)
+          ? { branchId: session.user.branchId }
+          : {}),
+      },
       ...(session.user.role === UserRole.STAFF
         ? { assignedToId: session.user.id }
         : {}),
@@ -149,6 +155,7 @@ export async function POST(req: NextRequest) {
     // Only REVIEWER, ADMIN, SUPER_ADMIN can create tasks
     const allowedRoles: string[] = [
       UserRole.REVIEWER,
+      UserRole.BRANCH_ADMIN,
       UserRole.ADMIN,
       UserRole.SUPER_ADMIN,
     ];
@@ -170,7 +177,7 @@ export async function POST(req: NextRequest) {
     // Verify assignee exists and belongs to the same company
     const assignee = await prisma.user.findUnique({
       where: { id: assignedToId },
-      select: { id: true, companyId: true },
+      select: { id: true, companyId: true, branchId: true },
     });
 
     if (!assignee) {
@@ -182,6 +189,10 @@ export async function POST(req: NextRequest) {
         "Cannot assign tasks to users in another company",
         403
       );
+    }
+
+    if ((session.user.role === UserRole.BRANCH_ADMIN || session.user.role === UserRole.REVIEWER) && assignee.branchId !== session.user.branchId) {
+      return errorResponse("You can only assign tasks within your own branch", 403);
     }
 
     const deadline = new Date(deadlineStr);
@@ -212,6 +223,12 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+
+    try {
+      await notifyTaskAssigned(task.id, assignedToId, title, deadline.toISOString());
+    } catch (notificationError) {
+      console.error("[TASKS-CREATE][NOTIFY]", notificationError);
+    }
 
     return successResponse(task, "Task assigned successfully");
   } catch (err) {

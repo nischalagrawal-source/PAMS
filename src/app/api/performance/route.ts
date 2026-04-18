@@ -8,6 +8,7 @@ import {
 import {
   calculateUserPerformance,
   calculateBonusPercentage,
+  persistUserPerformance,
 } from "@/lib/performance";
 
 /**
@@ -121,58 +122,7 @@ export async function POST(req: NextRequest) {
     let calculated = 0;
 
     for (const user of users) {
-      const result = await calculateUserPerformance(user.id, companyId, period);
-
-      // Upsert PerfScore for each parameter
-      for (const score of result.scores) {
-        await prisma.perfScore.upsert({
-          where: {
-            userId_parameterId_period: {
-              userId: user.id,
-              parameterId: score.parameterId,
-              period,
-            },
-          },
-          update: {
-            rawValue: score.rawValue,
-            normalizedScore: score.normalizedScore,
-            weightedScore: score.weightedScore,
-          },
-          create: {
-            userId: user.id,
-            parameterId: score.parameterId,
-            period,
-            rawValue: score.rawValue,
-            normalizedScore: score.normalizedScore,
-            weightedScore: score.weightedScore,
-          },
-        });
-      }
-
-      // Upsert BonusCalculation
-      await prisma.bonusCalculation.upsert({
-        where: {
-          userId_period: {
-            userId: user.id,
-            period,
-          },
-        },
-        update: {
-          totalScore: result.totalScore,
-          bonusPercentage: result.bonusPercentage,
-          tier: result.tier,
-          breakdown: JSON.parse(JSON.stringify(result.scores)),
-        },
-        create: {
-          userId: user.id,
-          period,
-          totalScore: result.totalScore,
-          bonusPercentage: result.bonusPercentage,
-          tier: result.tier,
-          breakdown: JSON.parse(JSON.stringify(result.scores)),
-        },
-      });
-
+      await persistUserPerformance(user.id, companyId, period);
       calculated++;
     }
 

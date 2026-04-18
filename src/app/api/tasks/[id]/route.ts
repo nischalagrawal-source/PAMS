@@ -8,6 +8,8 @@ import {
 } from "@/lib/api-utils";
 import { z } from "zod";
 import { UserRole, TaskStatus } from "@/generated/prisma/client";
+import { notifyTaskCompleted } from "@/lib/notifications";
+import { persistUserPerformance } from "@/lib/performance";
 
 // ── validation ───────────────────────────────────────────────
 
@@ -70,6 +72,7 @@ export async function GET(
             lastName: true,
             employeeCode: true,
             companyId: true,
+            branchId: true,
           },
         },
         assignedBy: {
@@ -110,6 +113,10 @@ export async function GET(
       return errorResponse("You can only view tasks assigned to you", 403);
     }
 
+    if ((session.user.role === UserRole.BRANCH_ADMIN || session.user.role === UserRole.REVIEWER) && task.assignedTo.branchId !== session.user.branchId) {
+      return errorResponse("You can only view tasks within your own branch", 403);
+    }
+
     return successResponse(task);
   } catch (err) {
     console.error("[TASK-GET]", err);
@@ -142,7 +149,7 @@ export async function PUT(
       where: { id },
       include: {
         assignedTo: {
-          select: { id: true, companyId: true },
+          select: { id: true, companyId: true, branchId: true, firstName: true, lastName: true },
         },
       },
     });
@@ -154,6 +161,14 @@ export async function PUT(
     // Tenant isolation
     if (existing.assignedTo.companyId !== session.user.companyId) {
       return errorResponse("Task not found", 404);
+    }
+
+    if (session.user.role === UserRole.STAFF && existing.assignedToId !== session.user.id) {
+      return errorResponse("You can only update tasks assigned to you", 403);
+    }
+
+    if ((session.user.role === UserRole.BRANCH_ADMIN || session.user.role === UserRole.REVIEWER) && existing.assignedTo.branchId !== session.user.branchId) {
+      return errorResponse("You can only manage tasks within your own branch", 403);
     }
 
     const {
@@ -186,6 +201,7 @@ export async function PUT(
     if (status !== undefined) {
       const reviewerRoles: string[] = [
         UserRole.REVIEWER,
+        UserRole.BRANCH_ADMIN,
         UserRole.ADMIN,
         UserRole.SUPER_ADMIN,
       ];
@@ -299,7 +315,41 @@ export async function PUT(
       },
     });
 
-    return successResponse(updated, "Task updated successfully");
+    const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+
+    if (
+      updated.status === TaskStatus.COMPLETED ||
+      updated.status === TaskStatus.OVERDUE ||
+      updated.status === TaskStatus.CANCELLED
+    ) {
+      try {
+        await persistUserPerformance(updated.assignedToId, session.user.companyId, currentPeriod);
+      } catch (performanceError) {
+        console.error("[TASK-UPDATE][PERFORMANCE]", performanceError);
+      }
+    }
+
+    if (updated.status === TaskStatus.COMPLETED) {
+      try {
+        await notifyTaskCompleted(
+          updated.id,
+          updated.assignedById,
+          updated.title,
+          `${existing.assignedTo.firstName} ${existing.assignedTo.lastName}`,
+          (updated.speedScore ?? 0) >= 100
+        );
+      } catch (notificationError) {
+        console.error("[TASK-UPDATE][NOTIFY]", notificationError);
+      }
+    }
+
+    const message = updated.status === TaskStatus.COMPLETED
+      ? ((updated.speedScore ?? 0) >= 100
+          ? "Task completed successfully — positive performance impact"
+          : "Task completed — deadline delay may reduce performance score")
+      : "Task updated successfully";
+
+    return successResponse(updated, message);
   } catch (err) {
     console.error("[TASK-UPDATE]", err);
     return errorResponse("Failed to update task", 500);

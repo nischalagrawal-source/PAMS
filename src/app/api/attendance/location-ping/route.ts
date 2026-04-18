@@ -8,6 +8,7 @@ import {
   parseBody,
 } from "@/lib/api-utils";
 import { haversineDistance } from "@/lib/geo";
+import { notifyGeoFenceBreach } from "@/lib/notifications";
 
 const locationPingSchema = z.object({
   latitude: z.number().min(-90).max(90),
@@ -66,44 +67,103 @@ export async function POST(req: NextRequest) {
 
     const fence = attendance.geoFence;
 
-    // Calculate distance from the check-in geo-fence
-    const distanceFromFence = haversineDistance(
+    // Calculate distance from the geo-fence center and actual distance beyond the allowed radius.
+    const distanceFromCenter = haversineDistance(
       latitude,
       longitude,
       fence.latitude,
       fence.longitude
     );
 
-    const insideFence = distanceFromFence <= fence.radiusM;
+    const insideFence = distanceFromCenter <= fence.radiusM;
+    const distanceFromFence = Math.max(0, distanceFromCenter - fence.radiusM);
 
-    // If outside the fence, log the exit event
+    const activeExit = await prisma.geoExitLog.findFirst({
+      where: {
+        attendanceId: attendance.id,
+        returnTime: null,
+      },
+      orderBy: { exitTime: "desc" },
+    });
+
+    let geoExitCount = attendance.geoExitCount;
+    let alertTriggered = false;
+    let message: string | null = null;
+
     if (!insideFence) {
-      await prisma.$transaction([
-        prisma.geoExitLog.create({
-          data: {
-            attendanceId: attendance.id,
+      if (!activeExit) {
+        geoExitCount += 1;
+
+        await prisma.$transaction([
+          prisma.geoExitLog.create({
+            data: {
+              attendanceId: attendance.id,
+              userId,
+              exitTime: new Date(),
+              exitLat: latitude,
+              exitLng: longitude,
+              distanceFromFence,
+            },
+          }),
+          prisma.attendance.update({
+            where: { id: attendance.id },
+            data: {
+              geoExitCount: { increment: 1 },
+              status: "FLAGGED",
+              suspiciousReason: `Outside allowed work zone by ${Math.round(distanceFromFence)}m`,
+            },
+          }),
+        ]);
+
+        const managers = await prisma.user.findMany({
+          where: {
+            companyId: session.user.companyId,
+            isActive: true,
+            id: { not: userId },
+            role: { in: ["ADMIN", "BRANCH_ADMIN", "REVIEWER"] },
+            ...(session.user.branchId
+              ? {
+                  OR: [
+                    { role: "ADMIN" },
+                    { branchId: session.user.branchId },
+                  ],
+                }
+              : {}),
+          },
+          select: { id: true },
+        });
+
+        try {
+          await notifyGeoFenceBreach({
             userId,
-            exitTime: new Date(),
-            exitLat: latitude,
-            exitLng: longitude,
+            managerIds: managers.map((manager) => manager.id),
+            fenceLabel: fence.label,
             distanceFromFence,
-          },
-        }),
-        prisma.attendance.update({
-          where: { id: attendance.id },
-          data: {
-            geoExitCount: { increment: 1 },
-          },
-        }),
-      ]);
+          });
+        } catch (notificationError) {
+          console.error("[LOCATION-PING][NOTIFY]", notificationError);
+        }
+
+        alertTriggered = true;
+        message = `You are outside ${fence.label}. A geo-alert has been sent.`;
+      } else {
+        message = `You are still outside ${fence.label}. Please return to the approved area.`;
+      }
+    } else if (activeExit) {
+      await prisma.geoExitLog.update({
+        where: { id: activeExit.id },
+        data: { returnTime: new Date() },
+      });
+
+      message = `You are back inside ${fence.label}.`;
     }
 
     return successResponse({
       insideFence,
       distanceFromFence: Math.round(distanceFromFence * 100) / 100,
-      geoExitCount: insideFence
-        ? attendance.geoExitCount
-        : attendance.geoExitCount + 1,
+      geoExitCount,
+      alertTriggered,
+      message,
     });
   } catch (err) {
     console.error("[LOCATION-PING]", err);

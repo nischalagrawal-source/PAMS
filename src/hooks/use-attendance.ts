@@ -39,6 +39,25 @@ interface AttendanceListResponse {
   totalPages: number;
 }
 
+interface LocationPingResponse {
+  insideFence: boolean;
+  distanceFromFence: number | null;
+  geoExitCount: number;
+  alertTriggered?: boolean;
+  message?: string | null;
+}
+
+interface ClientVisitCheckInResponse {
+  visitCount: number;
+  currentSite: string;
+  travelDistanceKm: number | null;
+  estimatedTravelMinutes: number | null;
+  actualTravelMinutes: number | null;
+  isReasonable: boolean;
+  reviewRequired: boolean;
+  source: "initial" | "google" | "fallback";
+}
+
 async function fetchToday(): Promise<AttendanceRecord | null> {
   const res = await fetch("/api/attendance/today");
   const json = await res.json();
@@ -66,11 +85,18 @@ async function fetchAttendanceList(params: {
   return json.data;
 }
 
-async function checkIn(coords: { latitude: number; longitude: number; accuracy?: number }): Promise<AttendanceRecord> {
+async function checkIn(data: {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  deviceFingerprint: string;
+  selfie: string;
+  faceMatchScore: number | null;
+}): Promise<AttendanceRecord> {
   const res = await fetch("/api/attendance/check-in", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(coords),
+    body: JSON.stringify(data),
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.error || "Check-in failed");
@@ -88,7 +114,7 @@ async function checkOut(coords: { latitude: number; longitude: number; accuracy?
   return json.data;
 }
 
-async function locationPing(coords: { latitude: number; longitude: number }) {
+async function locationPing(coords: { latitude: number; longitude: number }): Promise<LocationPingResponse> {
   const res = await fetch("/api/attendance/location-ping", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -96,7 +122,22 @@ async function locationPing(coords: { latitude: number; longitude: number }) {
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.error || "Location ping failed");
-  return json.data;
+  return json.data as LocationPingResponse;
+}
+
+async function clientVisitCheckIn(coords: {
+  latitude: number;
+  longitude: number;
+  notes?: string;
+}): Promise<ClientVisitCheckInResponse> {
+  const res = await fetch("/api/attendance/client-visit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(coords),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || "Client visit check-in failed");
+  return json.data as ClientVisitCheckInResponse;
 }
 
 /**
@@ -158,5 +199,18 @@ export function useCheckOut() {
 export function useLocationPing() {
   return useMutation({
     mutationFn: locationPing,
+  });
+}
+
+/**
+ * Hook for client visit checkpoint check-ins
+ */
+export function useClientVisitCheckIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: clientVisitCheckIn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+    },
   });
 }

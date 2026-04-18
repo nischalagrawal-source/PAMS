@@ -158,6 +158,13 @@ export default function PerformanceParametersPage() {
         </button>
       </div>
 
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 shadow-sm dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
+        <p className="font-semibold">Recommended first-release policy</p>
+        <p className="mt-1">
+          Keep the default scorecard simple: timely task completion and full attendance should reward staff, one leave per month stays neutral, and repeated late or delayed work should reduce performance.
+        </p>
+      </div>
+
       {/* Total Weight Indicator */}
       <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
         <div className="mb-2 flex items-center justify-between">

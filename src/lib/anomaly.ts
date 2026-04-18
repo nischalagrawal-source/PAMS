@@ -48,6 +48,14 @@ export async function detectAnomalies(companyId: string, date: Date): Promise<An
   const lateArrivals = await checkFrequentLateArrivals(companyId);
   anomalies.push(...lateArrivals);
 
+  // 8. Device Sharing Detection (anti-proxy attendance)
+  const deviceSharing = await checkDeviceSharing(companyId, startOfDay, endOfDay);
+  anomalies.push(...deviceSharing);
+
+  // 9. Pending Selfie Verifications
+  const pendingSelfies = await checkPendingSelfieVerifications(companyId);
+  if (pendingSelfies) anomalies.push(pendingSelfies);
+
   return anomalies;
 }
 
@@ -313,6 +321,73 @@ async function checkFrequentLateArrivals(companyId: string): Promise<AnomalyItem
   }
 
   return anomalies;
+}
+
+/**
+ * Check for multiple users checking in from the same device (proxy attendance)
+ */
+async function checkDeviceSharing(companyId: string, startOfDay: Date, endOfDay: Date): Promise<AnomalyItem[]> {
+  // Find device fingerprints used by multiple users today
+  const records = await prisma.attendance.findMany({
+    where: {
+      user: { companyId },
+      date: { gte: startOfDay, lte: endOfDay },
+      deviceFingerprint: { not: null },
+    },
+    include: { user: { select: { id: true, firstName: true, lastName: true, employeeCode: true } } },
+  });
+
+  // Group by deviceFingerprint
+  const deviceMap = new Map<string, typeof records>();
+  for (const record of records) {
+    if (!record.deviceFingerprint) continue;
+    const existing = deviceMap.get(record.deviceFingerprint) || [];
+    existing.push(record);
+    deviceMap.set(record.deviceFingerprint, existing);
+  }
+
+  const anomalies: AnomalyItem[] = [];
+  for (const [fingerprint, groupRecords] of deviceMap) {
+    if (groupRecords.length < 2) continue;
+
+    const userNames = groupRecords.map(
+      (r) => `${r.user.firstName} ${r.user.lastName} (${r.user.employeeCode})`
+    );
+
+    anomalies.push({
+      type: "device_sharing",
+      severity: "critical",
+      title: "Proxy Attendance Detected — Same Device",
+      description: `Multiple employees checked in from the same device today: ${userNames.join(", ")}. This strongly indicates proxy attendance fraud.`,
+      affectedUsers: groupRecords.map((r) => r.user.id),
+      data: { deviceFingerprint: fingerprint, userCount: groupRecords.length },
+    });
+  }
+
+  return anomalies;
+}
+
+/**
+ * Check for attendance records with pending selfie verifications
+ */
+async function checkPendingSelfieVerifications(companyId: string): Promise<AnomalyItem | null> {
+  const pendingCount = await prisma.attendance.count({
+    where: {
+      user: { companyId },
+      selfieVerifyStatus: "MANUAL_REVIEW",
+    },
+  });
+
+  if (pendingCount === 0) return null;
+
+  return {
+    type: "pending_selfie_reviews",
+    severity: pendingCount >= 10 ? "high" : "medium",
+    title: "Pending Selfie Verifications",
+    description: `${pendingCount} attendance selfies are awaiting admin review. Review them to verify employee identity.`,
+    affectedUsers: [],
+    data: { pendingCount },
+  };
 }
 
 /**

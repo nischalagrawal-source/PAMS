@@ -69,6 +69,13 @@ function daysUntil(d: string) {
   return `${diff}d left`;
 }
 
+function getPerformanceImpact(task: Task) {
+  if (task.status !== "COMPLETED" || task.speedScore === null) return null;
+  if (task.speedScore >= 100) return { label: "Rewarded", color: "text-green-600" };
+  if (task.speedScore >= 70) return { label: "Neutral", color: "text-amber-600" };
+  return { label: "Negative", color: "text-red-600" };
+}
+
 interface SimpleUser {
   id: string;
   firstName: string;
@@ -79,7 +86,7 @@ interface SimpleUser {
 
 export default function TasksPage() {
   const { data: session } = useSession();
-  const isReviewerOrAbove = ["REVIEWER", "ADMIN", "SUPER_ADMIN"].includes(session?.user?.role || "");
+  const isReviewerOrAbove = ["REVIEWER", "BRANCH_ADMIN", "ADMIN", "SUPER_ADMIN"].includes(session?.user?.role || "");
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
@@ -265,6 +272,7 @@ export default function TasksPage() {
               {selectedTask.assignedTo && <div className="flex justify-between"><span className="text-gray-500">Assigned To</span><span className="font-medium">{selectedTask.assignedTo.firstName} {selectedTask.assignedTo.lastName}</span></div>}
               {selectedTask.assignedBy && <div className="flex justify-between"><span className="text-gray-500">Assigned By</span><span className="font-medium">{selectedTask.assignedBy.firstName} {selectedTask.assignedBy.lastName}</span></div>}
               {selectedTask.speedScore !== null && <div className="flex justify-between"><span className="text-gray-500">Speed Score</span><span className={cn("font-bold", selectedTask.speedScore >= 80 ? "text-green-600" : selectedTask.speedScore >= 50 ? "text-amber-600" : "text-red-600")}>{selectedTask.speedScore}%</span></div>}
+              {getPerformanceImpact(selectedTask) && <div className="flex justify-between"><span className="text-gray-500">Performance Impact</span><span className={cn("font-bold", getPerformanceImpact(selectedTask)?.color)}>{getPerformanceImpact(selectedTask)?.label}</span></div>}
               {selectedTask.backlogWeeks > 0 && <div className="flex justify-between"><span className="text-gray-500">Backlog</span><span className="font-medium text-red-600">{selectedTask.backlogWeeks} week{selectedTask.backlogWeeks !== 1 ? "s" : ""}</span></div>}
 
               {/* Reviews */}
@@ -385,6 +393,9 @@ export default function TasksPage() {
                 <div className="hidden items-center gap-4 sm:flex">
                   {task.speedScore !== null && (
                     <div className="text-center"><p className="text-xs text-gray-500">Speed</p><p className={cn("text-sm font-bold", task.speedScore >= 80 ? "text-green-600" : task.speedScore >= 50 ? "text-amber-600" : "text-red-600")}>{task.speedScore}%</p></div>
+                  )}
+                  {getPerformanceImpact(task) && (
+                    <div className="text-center"><p className="text-xs text-gray-500">Impact</p><p className={cn("text-sm font-bold", getPerformanceImpact(task)?.color)}>{getPerformanceImpact(task)?.label}</p></div>
                   )}
                   {task.reviews && task.reviews.length > 0 && (
                     <div className="text-center"><p className="text-xs text-gray-500">Accuracy</p><p className="text-sm font-bold text-blue-600">{task.reviews[0].accuracyScore}%</p></div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { OnboardingGuide } from "@/components/onboarding-guide";
+import { AppUpdateBanner } from "@/components/app-update-banner";
 import { cn } from "@/lib/utils";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -44,7 +45,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
         )}
       >
-        <div className="p-4 sm:p-6">{children}</div>
+        <div className="p-4 sm:p-6">
+          <AppUpdateBanner />
+          {children}
+        </div>
       </main>
     </div>
   );

@@ -8,6 +8,8 @@ import {
 } from "@/lib/api-utils";
 import { z } from "zod";
 import { UserRole, TaskStatus } from "@/generated/prisma/client";
+import { notifyTaskReviewed, sendNotification } from "@/lib/notifications";
+import { persistUserPerformance } from "@/lib/performance";
 
 // ── validation ───────────────────────────────────────────────
 
@@ -39,6 +41,7 @@ export async function POST(
     // Only REVIEWER, ADMIN, SUPER_ADMIN can review
     const allowedRoles: string[] = [
       UserRole.REVIEWER,
+      UserRole.BRANCH_ADMIN,
       UserRole.ADMIN,
       UserRole.SUPER_ADMIN,
     ];
@@ -61,7 +64,7 @@ export async function POST(
       where: { id: taskId },
       include: {
         assignedTo: {
-          select: { companyId: true },
+          select: { companyId: true, branchId: true },
         },
       },
     });
@@ -111,6 +114,15 @@ export async function POST(
         },
       },
     });
+
+    const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+
+    try {
+      await persistUserPerformance(review.task.assignedToId, session.user.companyId, currentPeriod);
+      await notifyTaskReviewed(review.task.assignedToId, review.task.id, review.task.title, accuracyScore);
+    } catch (followupError) {
+      console.error("[TASK-REVIEW-CREATE][FOLLOWUP]", followupError);
+    }
 
     return successResponse(review, "Review submitted successfully");
   } catch (err) {
@@ -199,6 +211,21 @@ export async function PUT(
         },
       },
     });
+
+    try {
+      if (!staffAgreed) {
+        await sendNotification({
+          userId: updated.reviewer.id,
+          channel: "EMAIL",
+          type: "task_review_disputed",
+          subject: "Task review disputed by staff",
+          message: `The task review for "${updated.task.title}" was disputed by the staff member.${staffComments ? ` Comment: ${staffComments}` : ""}`,
+          metadata: { taskId: updated.task.id },
+        });
+      }
+    } catch (followupError) {
+      console.error("[TASK-REVIEW-RESPOND][FOLLOWUP]", followupError);
+    }
 
     return successResponse(updated, "Review response submitted successfully");
   } catch (err) {

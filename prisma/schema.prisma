@@ -84,6 +84,14 @@ enum SlipStatus {
   FINALIZED
 }
 
+enum SelfieVerifyStatus {
+  PENDING
+  AUTO_VERIFIED
+  MANUAL_REVIEW
+  ADMIN_APPROVED
+  ADMIN_REJECTED
+}
+
 // ============================================================
 // MULTI-TENANT: COMPANY
 // ============================================================
@@ -172,6 +180,7 @@ model User {
   notifications       Notification[]
   anomalyRecipients   AnomalyRule[]        @relation("AnomalyRecipients")
   shift               UserShift?
+  deviceBindings      DeviceBinding[]
 
   @@unique([companyId, employeeCode])
   @@index([companyId])
@@ -276,6 +285,13 @@ model Attendance {
   otEligible     Boolean          @default(false) // OT was enabled this month
   otRatePerHour  Float?           // Calculated: netSalary / (dutyHours * workingDays)
   otAmount       Float?           // overtimeHours * otRatePerHour
+  // Anti-fraud: device fingerprint & selfie verification
+  deviceFingerprint    String?             // Browser/device fingerprint hash
+  checkInSelfieUrl     String?             // Path to check-in selfie image
+  selfieVerifyStatus   SelfieVerifyStatus  @default(PENDING)
+  selfieMatchScore     Float?              // 0-100 face match confidence
+  selfieReviewedById   String?             // Admin who reviewed the selfie
+  selfieReviewedAt     DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -661,4 +677,23 @@ model UserShift {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_shifts")
+}
+
+// ============================================================
+// ANTI-FRAUD: DEVICE BINDING
+// ============================================================
+
+model DeviceBinding {
+  id                String   @id @default(cuid())
+  userId            String
+  deviceFingerprint String
+  userAgent         String?
+  lastUsedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceFingerprint])
+  @@index([deviceFingerprint])
+  @@map("device_bindings")
 }

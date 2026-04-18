@@ -157,15 +157,26 @@ export async function calculateParameterScore(
           status: { in: ["APPROVED", "PENDING"] },
           startDate: { gte: startOfMonth, lte: endOfMonth },
         },
-        select: { isAdvance: true, isEmergency: true, scoringImpact: true },
+        select: { isAdvance: true, isEmergency: true, scoringImpact: true, durationDays: true },
       });
-      if (leaves.length === 0) return { rawValue: 0, normalizedScore: 80 };
+
+      if (leaves.length === 0) {
+        return { rawValue: 0, normalizedScore: 100 };
+      }
+
       const advanceCount = leaves.filter((l) => l.isAdvance).length;
       const emergencyCount = leaves.filter((l) => l.isEmergency).length;
+      const totalLeaveDays = leaves.reduce((sum, l) => sum + (l.durationDays ?? 0), 0);
       const totalImpact = leaves.reduce((sum, l) => sum + (l.scoringImpact ?? 0), 0);
-      // More advance = good, less emergency = good
-      const score = Math.max(0, Math.min(100, 80 + advanceCount * 5 + totalImpact * 10 - emergencyCount * 15));
-      return { rawValue: emergencyCount, normalizedScore: Math.round(score) };
+
+      // Policy: one leave day in a month is neutral; excessive or emergency leave lowers the score.
+      const excessLeaveDays = Math.max(0, totalLeaveDays - 1);
+      const score = Math.max(
+        0,
+        Math.min(100, 100 - excessLeaveDays * 12 - emergencyCount * 10 + Math.min(advanceCount * 2, 4) + totalImpact * 10)
+      );
+
+      return { rawValue: totalLeaveDays, normalizedScore: Math.round(score) };
     }
 
     case "WFH Productivity": {
@@ -276,4 +287,69 @@ function countWorkingDaysInMonth(year: number, month: number): number {
     if (day !== 0 && day !== 6) count++;
   }
   return count;
+}
+
+/**
+ * Persist the latest performance and bonus calculation for a user and period.
+ */
+export async function persistUserPerformance(
+  userId: string,
+  companyId: string,
+  period: string
+) {
+  const result = await calculateUserPerformance(userId, companyId, period);
+
+  for (const score of result.scores) {
+    const note = `${score.parameterName}: score ${score.normalizedScore}/100, raw value ${score.rawValue}`;
+
+    await prisma.perfScore.upsert({
+      where: {
+        userId_parameterId_period: {
+          userId,
+          parameterId: score.parameterId,
+          period,
+        },
+      },
+      update: {
+        rawValue: score.rawValue,
+        normalizedScore: score.normalizedScore,
+        weightedScore: score.weightedScore,
+        notes: note,
+      },
+      create: {
+        userId,
+        parameterId: score.parameterId,
+        period,
+        rawValue: score.rawValue,
+        normalizedScore: score.normalizedScore,
+        weightedScore: score.weightedScore,
+        notes: note,
+      },
+    });
+  }
+
+  await prisma.bonusCalculation.upsert({
+    where: {
+      userId_period: {
+        userId,
+        period,
+      },
+    },
+    update: {
+      totalScore: result.totalScore,
+      bonusPercentage: result.bonusPercentage,
+      tier: result.tier,
+      breakdown: JSON.parse(JSON.stringify(result.scores)),
+    },
+    create: {
+      userId,
+      period,
+      totalScore: result.totalScore,
+      bonusPercentage: result.bonusPercentage,
+      tier: result.tier,
+      breakdown: JSON.parse(JSON.stringify(result.scores)),
+    },
+  });
+
+  return result;
 }

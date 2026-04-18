@@ -4,6 +4,7 @@
  */
 
 const EARTH_RADIUS_M = 6371000; // Earth's radius in meters
+const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY || "";
 
 /**
  * Convert degrees to radians
@@ -128,4 +129,69 @@ export function distanceFromFenceBoundary(
 ): number {
   const distanceFromCenter = haversineDistance(userLat, userLng, fenceLat, fenceLng);
   return distanceFromCenter - fenceRadiusM;
+}
+
+/**
+ * Estimate travel distance and duration between two points.
+ * Uses Google Maps Directions when configured, otherwise falls back to straight-line estimation.
+ */
+export async function estimateTravelMetrics(
+  origin: { latitude: number; longitude: number },
+  destination: { latitude: number; longitude: number }
+): Promise<{ distanceKm: number; durationMinutes: number; source: "google" | "fallback" }> {
+  if (GOOGLE_MAPS_KEY) {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=driving&departure_time=now&key=${GOOGLE_MAPS_KEY}`;
+      const resp = await fetch(url, { cache: "no-store" });
+      const data = await resp.json() as {
+        status?: string;
+        routes?: Array<{
+          legs?: Array<{
+            distance?: { value?: number };
+            duration?: { value?: number };
+          }>;
+        }>;
+      };
+
+      const leg = data.routes?.[0]?.legs?.[0];
+      if (resp.ok && data.status === "OK" && leg?.distance?.value && leg?.duration?.value) {
+        return {
+          distanceKm: Math.round((leg.distance.value / 1000) * 100) / 100,
+          durationMinutes: Math.max(1, Math.round(leg.duration.value / 60)),
+          source: "google",
+        };
+      }
+    } catch (error) {
+      console.warn("[GEO][TRAVEL_METRICS_FALLBACK]", error);
+    }
+  }
+
+  const distanceKm = Math.round((haversineDistance(
+    origin.latitude,
+    origin.longitude,
+    destination.latitude,
+    destination.longitude
+  ) / 1000) * 100) / 100;
+
+  // Conservative urban travel estimate fallback: average effective speed ~25 km/h.
+  const durationMinutes = Math.max(5, Math.round((distanceKm / 25) * 60));
+
+  return {
+    distanceKm,
+    durationMinutes,
+    source: "fallback",
+  };
+}
+
+/**
+ * Check whether recorded travel time is reasonable compared with estimated route time.
+ */
+export function isTravelReasonable(
+  actualTravelMinutes: number,
+  estimatedTravelMinutes: number,
+  distanceKm: number
+): boolean {
+  if (distanceKm <= 1) return true;
+  const minimumReasonableMinutes = Math.max(5, Math.round(estimatedTravelMinutes * 0.6));
+  return actualTravelMinutes >= minimumReasonableMinutes;
 }

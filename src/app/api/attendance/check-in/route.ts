@@ -9,12 +9,16 @@ import {
 } from "@/lib/api-utils";
 import { determineLocationType } from "@/lib/geo";
 import { WFH_DISTANCE_THRESHOLD, MAX_GPS_ACCURACY_M } from "@/lib/constants";
-import { LocationType, AttendanceStatus } from "@/generated/prisma/client";
+import { LocationType, AttendanceStatus, SelfieVerifyStatus } from "@/generated/prisma/client";
+import { saveSelfieImage, compareFaces } from "@/lib/face-match";
 
 const checkInSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   accuracy: z.number().min(0).max(10000).optional(),
+  deviceFingerprint: z.string().min(10).max(128),
+  selfie: z.string().min(100), // base64 data URL
+  faceMatchScore: z.number().min(0).max(100).nullable().optional(),
 });
 
 /**
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
     const parsed = checkInSchema.safeParse(body);
     if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-    const { latitude, longitude, accuracy } = parsed.data;
+    const { latitude, longitude, accuracy, deviceFingerprint, selfie, faceMatchScore } = parsed.data;
     const userId = session.user.id;
 
     const today = new Date();
@@ -191,6 +195,70 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // === ANTI-FRAUD: DEVICE FINGERPRINT CHECK ===
+    const suspiciousReasons: string[] = [];
+    if (suspiciousReason) suspiciousReasons.push(suspiciousReason);
+
+    // Check if another user checked in from the same device today
+    const sameDeviceToday = await prisma.attendance.findFirst({
+      where: {
+        deviceFingerprint,
+        date: { gte: today, lt: tomorrow },
+        userId: { not: userId },
+      },
+      include: { user: { select: { firstName: true, lastName: true, employeeCode: true } } },
+    });
+
+    if (sameDeviceToday) {
+      isSuspiciousLocation = true;
+      const otherUser = sameDeviceToday.user;
+      suspiciousReasons.push(
+        `Same device used by ${otherUser.firstName} ${otherUser.lastName} (${otherUser.employeeCode}) today — possible proxy attendance`
+      );
+      status = AttendanceStatus.FLAGGED;
+
+      // Also flag the other user's attendance
+      await prisma.attendance.update({
+        where: { id: sameDeviceToday.id },
+        data: {
+          isSuspiciousLocation: true,
+          status: AttendanceStatus.FLAGGED,
+          suspiciousReason: `Same device used by another employee — possible proxy attendance`,
+        },
+      });
+    }
+
+    // Register/update device binding
+    await prisma.deviceBinding.upsert({
+      where: { userId_deviceFingerprint: { userId, deviceFingerprint } },
+      update: { lastUsedAt: new Date(), userAgent: req.headers.get("user-agent") ?? undefined },
+      create: { userId, deviceFingerprint, userAgent: req.headers.get("user-agent") ?? undefined },
+    });
+
+    // === ANTI-FRAUD: SELFIE VERIFICATION ===
+    let selfieUrl: string | null = null;
+    let selfieVerifyStatus: SelfieVerifyStatus = SelfieVerifyStatus.PENDING;
+    let selfieMatchScore: number | null = null;
+
+    try {
+      selfieUrl = saveSelfieImage(selfie, userId);
+      const faceResult = await compareFaces(selfieUrl, userId, faceMatchScore ?? null);
+      selfieVerifyStatus = SelfieVerifyStatus[faceResult.status];
+      selfieMatchScore = faceResult.score;
+
+      if (faceResult.status === "MANUAL_REVIEW") {
+        suspiciousReasons.push("Selfie requires manual verification");
+      }
+    } catch (selfieError) {
+      console.error("[CHECK-IN] Selfie processing error:", selfieError);
+      selfieVerifyStatus = SelfieVerifyStatus.MANUAL_REVIEW;
+      suspiciousReasons.push("Selfie could not be processed — flagged for review");
+    }
+
+    // Update suspiciousReason with all collected reasons
+    suspiciousReason = suspiciousReasons.length > 0 ? suspiciousReasons.join("; ") : null;
+    if (suspiciousReasons.length > 0) isSuspiciousLocation = true;
+
     // Create attendance record
     const attendance = await prisma.attendance.create({
       data: {
@@ -211,6 +279,10 @@ export async function POST(req: NextRequest) {
         isHalfDay,
         isHolidayWork,
         holidayReason,
+        deviceFingerprint,
+        checkInSelfieUrl: selfieUrl,
+        selfieVerifyStatus,
+        selfieMatchScore,
       },
       include: {
         geoFence: { select: { id: true, label: true, type: true } },
