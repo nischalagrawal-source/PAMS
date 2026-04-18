@@ -30,7 +30,7 @@ jobs:
           script: |
             set -e
             cd /var/www/pams
-            bash deploy/deploy.sh master "http://127.0.0.1:3000/api/health"
+            bash deploy/deploy.sh master "http://127.0.0.1:3000/api/health?scope=app"
 
       - name: Deploy staging on VPS over SSH
         if: github.ref == 'refs/heads/staging'
@@ -45,7 +45,7 @@ jobs:
           script: |
             set -e
             cd /var/www/pams
-            bash deploy/deploy.sh staging "http://127.0.0.1:3000/api/health"
+            bash deploy/deploy.sh staging "http://127.0.0.1:3000/api/health?scope=app"
 
       - name: Notify Slack (production)
         if: always() && github.ref == 'refs/heads/master'

@@ -12,7 +12,7 @@ set -Eeuo pipefail
 
 APP_DIR="/var/www/pams"
 TARGET_BRANCH="${1:-master}"
-HEALTHCHECK_URL="${2:-}"
+HEALTHCHECK_URL="${2:-http://127.0.0.1:3000/api/health?scope=app}"
 PREVIOUS_COMMIT=""
 
 # ---- Ensure swap exists (prevents OOM on low-memory VPS) ----
@@ -47,15 +47,20 @@ health_check() {
   fi
 
   echo "-> Running health check: $HEALTHCHECK_URL"
-  local http_code
-  http_code="$(curl --silent --show-error --location --max-time 15 --output /dev/null --write-out "%{http_code}" "$HEALTHCHECK_URL")"
 
-  if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
-    echo "-> Health check passed with HTTP $http_code"
-    return 0
-  fi
+  for attempt in 1 2 3 4 5 6; do
+    local http_code
+    http_code="$(curl --silent --show-error --location --max-time 15 --output /dev/null --write-out "%{http_code}" "$HEALTHCHECK_URL" || echo 000)"
 
-  echo "-> Health check failed with HTTP $http_code"
+    if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
+      echo "-> Health check passed with HTTP $http_code on attempt $attempt"
+      return 0
+    fi
+
+    echo "-> Health check attempt $attempt failed with HTTP $http_code"
+  done
+
+  echo "-> Health check failed after multiple attempts"
   return 1
 }
 
@@ -142,10 +147,10 @@ pm2 save
 pm2 startup systemd -u root --hp /root 2>/dev/null || true
 
 step "Waiting for app to start"
-for i in 1 2 3 4 5 6; do
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   sleep 5
   echo "-> Attempt $i: checking if app is ready..."
-  if curl --silent --max-time 5 --output /dev/null --write-out "%{http_code}" "http://127.0.0.1:3000/api/health" 2>/dev/null | grep -q '^[23]'; then
+  if curl --silent --max-time 5 --output /dev/null --write-out "%{http_code}" "$HEALTHCHECK_URL" 2>/dev/null | grep -q '^[23]'; then
     echo "-> App is ready!"
     break
   fi
