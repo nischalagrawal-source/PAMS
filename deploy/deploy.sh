@@ -36,8 +36,25 @@ step() {
 }
 
 run_schema_sync() {
-  npx prisma db push 2>&1
-  echo "-> Schema synced"
+  local attempts=1
+  local max_attempts=5
+
+  while true; do
+    echo "-> Schema sync attempt ${attempts}/${max_attempts}"
+    if npx prisma db push 2>&1; then
+      echo "-> Schema synced"
+      return 0
+    fi
+
+    if [ "$attempts" -ge "$max_attempts" ]; then
+      echo "-> Schema sync failed after ${max_attempts} attempts"
+      return 1
+    fi
+
+    echo "-> Schema sync failed. Waiting 20s before retry (database may be waking up)..."
+    sleep 20
+    attempts=$((attempts + 1))
+  done
 }
 
 health_check() {
