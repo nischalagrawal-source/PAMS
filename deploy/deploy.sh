@@ -146,7 +146,9 @@ step "Installing dependencies"
 npm ci --production=false 2>&1
 
 step "Syncing database schema"
-run_schema_sync
+if ! run_schema_sync; then
+  echo "WARNING: Schema sync failed (database may be sleeping). Continuing with existing schema."
+fi
 
 step "Generating Prisma client"
 npx prisma generate 2>&1
