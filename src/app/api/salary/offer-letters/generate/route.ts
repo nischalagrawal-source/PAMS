@@ -46,6 +46,8 @@ const generateOfferSchema = z.object({
     responsibilitiesText: z.string().optional(),
     kycDocumentsText: z.string().optional(),
     specialTerms: z.string().optional(),
+    signatoryName: z.string().optional(),
+    signatoryTitle: z.string().optional(),
   }).optional(),
 });
 
@@ -232,7 +234,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findFirst({
       where: { id: userId, companyId },
       include: {
-        company: { select: { name: true } },
+        company: { select: { name: true, address: true, email: true, phone: true } },
       },
     });
 
@@ -257,6 +259,11 @@ export async function POST(req: NextRequest) {
       dateOfJoining: formatDate(user.dateOfJoining),
       joiningDate,
       companyName: user.company.name,
+      companyAddress: user.company.address || "",
+      companyEmail: user.company.email || "",
+      companyPhone: user.company.phone || "",
+      signatoryName: offerData?.signatoryName || "Authorised Signatory",
+      signatoryTitle: offerData?.signatoryTitle || "For Management",
       date: formatDate(now),
       issueDate: offerData?.issueDate ? formatDate(offerData.issueDate) : formatDate(now),
       currentSalary: formatMoney(offerData?.currentSalary),

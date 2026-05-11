@@ -54,6 +54,18 @@ interface OnboardingDoc {
   uploadedAt: string;
 }
 
+interface Company {
+  id: string;
+  name: string;
+  address: string | null;
+  email: string | null;
+  phone: string | null;
+  inTime: string;
+  outTime: string;
+  graceMinutes: number;
+  lateThreshold: number;
+}
+
 interface OfferLetterRecord {
   id: string;
   content: string;
@@ -85,11 +97,7 @@ const STATUS_CONFIG = {
   REJECTED: { label: "Rejected", color: "text-red-600 bg-red-50 border-red-200", icon: <XCircle size={13} /> },
 };
 
-const DEFAULT_RESPONSIBILITIES = `Managing, executing, and ensuring timely completion of all types of audits and tax compliance for NR Agrawal & Co
-Compliance with regards to direct & indirect taxation
-Bank & PSU audits & assurance
-Any other audits/compliance/appeals under various statutes
-Engaging in any activity ancillary to the core functions of the partnership firm or its branches`;
+const DEFAULT_RESPONSIBILITIES = ``;
 
 const DEFAULT_KYC_DOCS = `PAN Card copy
 Aadhaar Card copy
@@ -167,8 +175,10 @@ export default function OnboardingPage() {
     workingHours: "9:30 AM to 5:30 PM",
     lateArrivalGraceCount: "3",
     lateArrivalCutoff: "9:45 AM",
-    hrEmail: "nischal@nragroup.in",
-    emergencyWhatsapp: "9930007074",
+    hrEmail: "",
+    emergencyWhatsapp: "",
+    signatoryName: "",
+    signatoryTitle: "Authorised Signatory",
     responsibilitiesText: DEFAULT_RESPONSIBILITIES,
     kycDocumentsText: DEFAULT_KYC_DOCS,
   });
@@ -176,6 +186,33 @@ export default function OnboardingPage() {
   const [seedingTemplates, setSeedingTemplates] = useState(false);
 
   // ── Data queries ──────────────────────────────────────────
+
+  const companyQuery = useQuery({
+    queryKey: ["admin", "company", "mine"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/companies/mine");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data as Company;
+    },
+    // Populate form defaults once company loads
+    gcTime: Infinity,
+  });
+
+  // Auto-fill HR email & phone from company when company loads
+  const company = companyQuery.data;
+  const prevCompanyRef = useRef<string | null>(null);
+  if (company && prevCompanyRef.current !== company.id) {
+    prevCompanyRef.current = company.id;
+    // Use queueMicrotask so we don't call setState during render
+    queueMicrotask(() => {
+      setOfferForm((f) => ({
+        ...f,
+        hrEmail: f.hrEmail || company.email || "",
+        emergencyWhatsapp: f.emergencyWhatsapp || company.phone || "",
+      }));
+    });
+  }
 
   const employeesQuery = useQuery({
     queryKey: ["admin", "users", ""],
@@ -285,6 +322,8 @@ export default function OnboardingPage() {
             lateArrivalCutoff: offerForm.lateArrivalCutoff,
             hrEmail: offerForm.hrEmail,
             emergencyWhatsapp: offerForm.emergencyWhatsapp,
+            signatoryName: offerForm.signatoryName || undefined,
+            signatoryTitle: offerForm.signatoryTitle || undefined,
             responsibilitiesText: offerForm.responsibilitiesText,
             kycDocumentsText: offerForm.kycDocumentsText,
           },
@@ -350,6 +389,8 @@ export default function OnboardingPage() {
       positionTitle: emp.designation ?? "",
       joiningDate: "",
       issueDate: new Date().toISOString().slice(0, 10),
+      signatoryName: "",
+      signatoryTitle: "Authorised Signatory",
     }));
   }
 
@@ -651,6 +692,8 @@ export default function OnboardingPage() {
                         { label: "Late Arrival Cutoff", key: "lateArrivalCutoff", type: "text", placeholder: "9:45 AM" },
                         { label: "HR Email", key: "hrEmail", type: "email", placeholder: "" },
                         { label: "Emergency WhatsApp", key: "emergencyWhatsapp", type: "text", placeholder: "" },
+                        { label: "Signatory Name", key: "signatoryName", type: "text", placeholder: "CA Nischal Agrawal" },
+                        { label: "Signatory Title", key: "signatoryTitle", type: "text", placeholder: "Partner / Director / Authorised Signatory" },
                       ].map(({ label, key, type, placeholder }) => (
                         <div key={key}>
                           <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{label}</label>
@@ -699,17 +742,21 @@ export default function OnboardingPage() {
                     </div>
 
                     <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-                      <h4 className="mb-3 font-semibold text-gray-900 dark:text-white">Auto-Filled from Firm Settings</h4>
+                      <h4 className="mb-3 font-semibold text-gray-900 dark:text-white">Auto-Filled from Company Settings</h4>
                       <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <p>Working days: Monday – Friday &amp; 1st/3rd/5th Saturday</p>
-                        <p>Timings: 9:30 AM – 5:30 PM</p>
-                        <p>Late grace: 3 arrivals until 9:45 AM</p>
-                        <p>Paid leaves: 12/year · Festival holidays: 13</p>
-                        <p>HR email: nischal@nragroup.in</p>
-                        <p>Emergency WhatsApp: 9930007074</p>
-                        <p>Security deposit: Refunded with 13th-month salary</p>
-                        <p>Confidentiality, conflict of interest &amp; sandwich leave clauses included automatically</p>
-                        <p>Holiday annexure for current year included</p>
+                        {company ? (
+                          <>
+                            <p><span className="font-medium text-gray-600 dark:text-gray-300">Company:</span> {company.name}</p>
+                            {company.address && <p><span className="font-medium text-gray-600 dark:text-gray-300">Address:</span> {company.address}</p>}
+                            {company.email && <p><span className="font-medium text-gray-600 dark:text-gray-300">HR Email:</span> {company.email}</p>}
+                            {company.phone && <p><span className="font-medium text-gray-600 dark:text-gray-300">Phone:</span> {company.phone}</p>}
+                            <p><span className="font-medium text-gray-600 dark:text-gray-300">Timings:</span> {company.inTime} – {company.outTime}</p>
+                            <p><span className="font-medium text-gray-600 dark:text-gray-300">Late grace:</span> {company.lateThreshold} arrivals within {company.graceMinutes} min</p>
+                          </>
+                        ) : (
+                          <p className="italic">Loading company details…</p>
+                        )}
+                        <p className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">Company name &amp; address appear automatically in the letterhead and signature block. Fill in <strong>Signatory Name</strong> and <strong>Title</strong> for this specific letter.</p>
                       </div>
                     </div>
 

@@ -8,7 +8,7 @@ import {
 
 const auditAssistantTemplateName = "Standard Offer Letter - Audit Assistant";
 const associateTemplateName = "Standard Offer Letter - Associate";
-const nracoProTemplateName = "NR Agrawal & Co — Professional Offer Letter";
+const nracoProTemplateName = "Professional Offer Letter";
 
 const auditAssistantTemplateContent = `
 <h2>OFFER LETTER</h2>
@@ -183,10 +183,8 @@ table.hol-table th { background: #e8eaf6; font-weight: bold; text-align: center;
 </style>
 
 <div class="letterhead">
-  <div class="firm-name">N R AGRAWAL &amp; CO</div>
-  <div class="firm-sub">Chartered Accountants</div>
-  <div class="firm-ca">CA Nischal Agrawal &nbsp;&bull;&nbsp; Membership No. 138579 &nbsp;&bull;&nbsp; Partner</div>
-  <div class="firm-addr">209 B, 2nd Floor, Crystal Plaza, New Link Road, Andheri West, Mumbai 400053</div>
+  <div class="firm-name">{{companyName}}</div>
+  <div class="firm-addr">{{companyAddress}}</div>
 </div>
 
 <div class="ol-title">OFFER LETTER</div>
@@ -256,7 +254,7 @@ table.hol-table th { background: #e8eaf6; font-weight: bold; text-align: center;
 </ul>
 
 <div class="sec-head">Conflict of Interest Declaration</div>
-<p>In line with peer review guidelines, CA firms are required to obtain declaration from all professional staff that they do not have any conflict of interest with the firm's clients. If any such conflict of interest arises in future, the firm shall be intimated immediately.</p>
+<p>{{conflictOfInterestClause}}</p>
 
 <div class="sec-head">Confidentiality Clause</div>
 <ol class="ol-ol">
@@ -283,13 +281,10 @@ table.hol-table th { background: #e8eaf6; font-weight: bold; text-align: center;
 <br/>
 <p>Warm regards,</p>
 <div class="sig-block">
-  <p><strong>CA Nischal Agrawal</strong><br/>
-  Partner<br/>
-  NR Agrawal &amp; Co<br/>
-  Membership No. 138579<br/>
-  209 B, 2nd Floor, Crystal Plaza<br/>
-  New Link Road, Andheri West<br/>
-  Mumbai 400053</p>
+  <p><strong>{{signatoryName}}</strong><br/>
+  {{signatoryTitle}}<br/>
+  {{companyName}}<br/>
+  {{companyAddress}}</p>
 </div>
 
 <div class="accept-block">
