@@ -114,7 +114,19 @@ export async function DELETE(
       );
     }
 
-    await prisma.company.delete({ where: { id } });
+    // Cascade-delete all company-scoped config/data records, then the company
+    await prisma.$transaction(async (tx) => {
+      await tx.salarySlip.deleteMany({ where: { companyId: id } });
+      await tx.anomalyReport.deleteMany({ where: { companyId: id } });
+      await tx.anomalyRule.deleteMany({ where: { companyId: id } });
+      await tx.perfParameter.deleteMany({ where: { companyId: id } });
+      await tx.leavePolicy.deleteMany({ where: { companyId: id } });
+      await tx.holiday.deleteMany({ where: { companyId: id } });
+      await tx.offerLetterTemplate.deleteMany({ where: { companyId: id } });
+      await tx.geoFence.deleteMany({ where: { companyId: id } });
+      await tx.branch.deleteMany({ where: { companyId: id } });
+      await tx.company.delete({ where: { id } });
+    });
     return successResponse(null, "Company deleted");
   } catch (err) {
     console.error("[DELETE /api/admin/companies/[id]]", err);

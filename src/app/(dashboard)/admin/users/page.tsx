@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users,
@@ -18,6 +19,7 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   AlertTriangle,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -91,24 +93,47 @@ const ROLE_LABELS: Record<User["role"], string> = {
 
 const FILTER_ROLES = ["ALL", "STAFF", "REVIEWER", "ADMIN"] as const;
 
+interface Company {
+  id: string;
+  name: string;
+  code: string;
+}
+
 export default function UserManagementPage() {
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<UserFormData>(emptyForm);
   const [formError, setFormError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [showUpload, setShowUpload] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<{ created: number; total: number; results: Array<{ email: string; status: string }> } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
-  const usersQuery = useQuery({
-    queryKey: ["admin", "users"],
+  const companiesQuery = useQuery({
+    queryKey: ["admin", "companies", "lite"],
+    enabled: isSuperAdmin,
     queryFn: async () => {
-      const res = await fetch("/api/admin/users");
+      const res = await fetch("/api/admin/companies");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data as Company[];
+    },
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ["admin", "users", selectedCompanyId],
+    queryFn: async () => {
+      const url = selectedCompanyId
+        ? `/api/admin/users?companyId=${selectedCompanyId}`
+        : "/api/admin/users";
+      const res = await fetch(url);
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       return json.data as User[];
@@ -134,6 +159,7 @@ export default function UserManagementPage() {
           ...data,
           assignedGeoFenceId: data.assignedGeoFenceId || undefined,
           dateOfJoining: data.dateOfJoining || undefined,
+          ...(isSuperAdmin && selectedCompanyId ? { companyId: selectedCompanyId } : {}),
         }),
       });
       const json = await res.json();
@@ -193,7 +219,6 @@ export default function UserManagementPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 
-  function closeModal() {
     setShowModal(false);
     setEditingId(null);
     setForm(emptyForm);
@@ -461,6 +486,42 @@ export default function UserManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Company selector for SUPER_ADMIN */}
+      {isSuperAdmin && (
+        <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-900 dark:bg-indigo-950/30">
+          <Building2 size={18} className="shrink-0 text-indigo-600" />
+          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">View company:</span>
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => { setSelectedCompanyId(e.target.value); setRoleFilter("ALL"); setSearchQuery(""); }}
+            className="flex-1 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-indigo-700 dark:bg-gray-900 dark:text-white"
+          >
+            <option value="">All Companies</option>
+            {(companiesQuery.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Company selector for SUPER_ADMIN */}
+      {isSuperAdmin && (
+        <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-900 dark:bg-indigo-950/30">
+          <Building2 size={18} className="shrink-0 text-indigo-600" />
+          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">View company:</span>
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => { setSelectedCompanyId(e.target.value); setRoleFilter("ALL"); setSearchQuery(""); }}
+            className="flex-1 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-indigo-700 dark:bg-gray-900 dark:text-white"
+          >
+            <option value="">All Companies</option>
+            {(companiesQuery.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Search & Filter */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
