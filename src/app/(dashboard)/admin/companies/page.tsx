@@ -7,6 +7,7 @@ import {
   Building2,
   Plus,
   Pencil,
+  Trash2,
   X,
   Loader2,
   Save,
@@ -39,6 +40,7 @@ export default function CompanyManagementPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [formError, setFormError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<Company | null>(null);
 
   const companiesQuery = useQuery({
     queryKey: ["admin", "companies"],
@@ -89,6 +91,16 @@ export default function CompanyManagementPage() {
     onError: (err: Error) => setFormError(err.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/companies/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin", "companies"] }); setConfirmDelete(null); },
+    onError: (err: Error) => { alert(err.message); setConfirmDelete(null); },
+  });
+
   function closeModal() {
     setShowModal(false);
     setEditingId(null);
@@ -123,6 +135,7 @@ export default function CompanyManagementPage() {
   const sessionStatus = status;
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isDeleting = deleteMutation.isPending;
   const companies = companiesQuery.data ?? [];
 
   if (sessionStatus === "loading") {
@@ -222,7 +235,7 @@ export default function CompanyManagementPage() {
                   {new Date(c.createdAt).toLocaleDateString()}
                 </span>
               </div>
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex justify-end gap-1">
                 <button
                   onClick={() => openEdit(c)}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-indigo-600 dark:hover:bg-gray-800"
@@ -230,9 +243,51 @@ export default function CompanyManagementPage() {
                 >
                   <Pencil size={15} />
                 </button>
+                <button
+                  onClick={() => setConfirmDelete(c)}
+                  className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                  title="Delete company"
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/40">
+              <Trash2 size={22} className="text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Company?</h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Are you sure you want to delete <span className="font-semibold">{confirmDelete.name}</span>? This action cannot be undone.
+            </p>
+            {confirmDelete._count.users > 0 && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                This company has {confirmDelete._count.users} user(s) and cannot be deleted.
+              </p>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(confirmDelete.id)}
+                disabled={isDeleting || confirmDelete._count.users > 0}
+                className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+              >
+                {isDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
