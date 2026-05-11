@@ -153,6 +153,10 @@ fi
 step "Generating Prisma client"
 npx prisma generate 2>&1
 
+step "Ensuring uploads directory exists"
+mkdir -p "$APP_DIR/uploads/kyc"
+chmod -R 755 "$APP_DIR/uploads"
+
 step "Cleaning .next cache"
 rm -rf .next
 

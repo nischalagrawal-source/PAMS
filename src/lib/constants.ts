@@ -84,6 +84,7 @@ export const FEATURES = [
   { key: "admin_company_settings", label: "Company Settings", description: "Configure office hours & policies" },
   { key: "admin_leave_policies", label: "Leave Policies", description: "Manage leave configurations" },
   { key: "admin_salary", label: "Salary Structures", description: "Manage employee salaries" },
+  { key: "admin_onboarding", label: "Onboarding", description: "Staff onboarding, KYC & offer letters" },
 ] as const;
 
 export type FeatureKey = (typeof FEATURES)[number]["key"];
@@ -196,5 +197,11 @@ export const ADMIN_NAV_ITEMS = [
     href: "/admin/salary-structures",
     icon: "Wallet",
     feature: "admin_salary" as FeatureKey,
+  },
+  {
+    title: "Onboarding",
+    href: "/admin/onboarding",
+    icon: "ClipboardList",
+    feature: "admin_onboarding" as FeatureKey,
   },
 ] as const;

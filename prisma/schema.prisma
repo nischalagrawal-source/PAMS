@@ -92,6 +92,22 @@ enum SelfieVerifyStatus {
   ADMIN_REJECTED
 }
 
+enum OnboardingDocType {
+  AADHAAR
+  PAN
+  PASSPORT_PHOTO
+  BANK_DETAILS
+  EDUCATION_CERT
+  EXPERIENCE_CERT
+  PREV_SALARY_SLIP
+}
+
+enum DocVerifyStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 // ============================================================
 // MULTI-TENANT: COMPANY
 // ============================================================
@@ -165,6 +181,7 @@ model User {
   branch              Branch?              @relation(fields: [branchId], references: [id])
   assignedGeoFence    GeoFence?            @relation("AssignedGeoFence", fields: [assignedGeoFenceId], references: [id])
   featurePermissions  FeaturePermission[]
+  onboardingDocuments OnboardingDocument[]
   attendanceRecords   Attendance[]
   geoExitLogs         GeoExitLog[]
   leaveRequests       LeaveRequest[]
@@ -226,6 +243,25 @@ model FeaturePermission {
 
   @@unique([userId, feature])
   @@map("feature_permissions")
+}
+
+model OnboardingDocument {
+  id         String            @id @default(cuid())
+  userId     String
+  type       OnboardingDocType
+  fileUrl    String            // relative path from uploads/ root, e.g. kyc/{userId}/PAN-1234.pdf
+  fileName   String            // original filename
+  fileSizeKb Int
+  mimeType   String
+  status     DocVerifyStatus   @default(PENDING)
+  notes      String?
+  uploadedAt DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("onboarding_documents")
 }
 
 // ============================================================
