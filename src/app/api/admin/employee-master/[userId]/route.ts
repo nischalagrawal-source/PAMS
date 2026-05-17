@@ -2,8 +2,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionOrFail, errorResponse, successResponse } from "@/lib/api-utils";
 
-export async function GET(_req: NextRequest, { params }: { params: { userId: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   try {
+    const { userId } = await params;
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
@@ -13,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: { userId: str
     }
 
     const record = await prisma.employeeMasterRecord.findUnique({
-      where: { userId: params.userId },
+      where: { userId },
     });
 
     return successResponse(record);
@@ -23,8 +24,9 @@ export async function GET(_req: NextRequest, { params }: { params: { userId: str
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { userId: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   try {
+    const { userId } = await params;
     const { session, error } = await getSessionOrFail();
     if (error) return error;
 
@@ -73,8 +75,8 @@ export async function PUT(req: NextRequest, { params }: { params: { userId: stri
     };
 
     const record = await prisma.employeeMasterRecord.upsert({
-      where: { userId: params.userId },
-      create: { userId: params.userId, ...data },
+      where: { userId },
+      create: { userId, ...data },
       update: data,
     });
 
