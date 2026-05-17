@@ -344,6 +344,9 @@ export default function UserManagementPage() {
 
   const isSaving = updateMutation.isPending;
 
+  const editingUser = editingId ? users.find((u) => u.id === editingId) : null;
+  const isPortalUser = !!editingUser?.portalSynced;
+
   function getInitials(first: string, last: string) {
     return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
   }
@@ -742,11 +745,6 @@ export default function UserManagementPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {(() => {
-                const editingUser = editingId ? users.find(u => u.id === editingId) : null;
-                const isPortalUser = !!editingUser?.portalSynced;
-                return (
-                  <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">First Name *</label>
@@ -914,9 +912,6 @@ export default function UserManagementPage() {
                   Update
                 </button>
               </div>
-                  </>
-                );
-              })()} 
             </form>
           </div>
         </div>
