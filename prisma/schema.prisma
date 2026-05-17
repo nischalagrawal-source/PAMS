@@ -147,6 +147,7 @@ model Company {
   salarySlips        SalarySlip[]
   offerLetterTemplates OfferLetterTemplate[]
   holidays           Holiday[]
+  eTimeOfficeImports ETimeOfficeImport[]
 
   @@map("companies")
 }
@@ -198,6 +199,8 @@ model User {
   anomalyRecipients   AnomalyRule[]        @relation("AnomalyRecipients")
   shift               UserShift?
   deviceBindings      DeviceBinding[]
+  employeeMaster      EmployeeMasterRecord?
+  eTimeOfficeUploads  ETimeOfficeImport[]  @relation("ETimeOfficeUploads")
 
   @@unique([companyId, employeeCode])
   @@index([companyId])
@@ -733,3 +736,131 @@ model DeviceBinding {
   @@index([deviceFingerprint])
   @@map("device_bindings")
 }
+
+// ============================================================
+// EMPLOYEE MASTER (extended HR details)
+// ============================================================
+
+model EmployeeMasterRecord {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  // Personal details
+  dateOfBirth         DateTime?
+  fatherName          String?
+  spouseName          String?
+  bloodGroup          String?
+  gender              String?   // male | female | other
+  maritalStatus       String?   // single | married | divorced | widowed
+  // Addresses
+  permanentAddress    String?
+  currentAddress      String?
+  city                String?
+  state               String?
+  pincode             String?
+  // Emergency contact
+  emergencyName       String?
+  emergencyPhone      String?
+  emergencyRelation   String?
+  // Identity documents
+  panNumber           String?
+  aadhaarNumber       String?
+  passportNumber      String?
+  passportExpiry      DateTime?
+  // Bank details
+  bankName            String?
+  bankAccount         String?
+  ifscCode            String?
+  bankBranch          String?
+  // Employment history
+  previousEmployer    String?
+  previousDesignation String?
+  totalExperienceYears Float?
+  // Probation & confirmation
+  probationMonths     Int       @default(6)
+  probationEndDate    DateTime?
+  confirmationDate    DateTime?
+  // Exit details
+  exitDate            DateTime?
+  exitType            String?   // resigned | terminated | retired | absconded
+  exitReason          String?
+  noticePeriodDays    Int       @default(30)
+  // HR notes
+  hrNotes             String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("employee_master_records")
+}
+
+// ============================================================
+// eTIMEOFFICE IMPORT (3rd-party attendance Excel upload)
+// ============================================================
+
+model ETimeOfficeImport {
+  id           String   @id @default(cuid())
+  companyId    String
+  uploadedById String
+  fileName     String
+  month        String   // "YYYY-MM"
+  status       String   @default("DRAFT") // DRAFT | REVIEWED | SLIPS_GENERATED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company              @relation(fields: [companyId], references: [id])
+  uploadedBy User                 @relation("ETimeOfficeUploads", fields: [uploadedById], references: [id])
+  slips      ETimeOfficeSalarySlip[]
+
+  @@index([companyId, month])
+  @@map("etimeoffice_imports")
+}
+
+model ETimeOfficeSalarySlip {
+  id              String    @id @default(cuid())
+  importId        String
+  employeeName    String
+  employeeCode    String?
+  designation     String?
+  department      String?
+  // Attendance (from Excel)
+  workingDays     Float     @default(0)
+  presentDays     Float     @default(0)
+  absentDays      Float     @default(0)
+  lateDays        Int       @default(0)
+  halfDays        Int       @default(0)
+  otHours         Float     @default(0)
+  // Earnings
+  basicSalary     Float     @default(0)
+  hra             Float     @default(0)
+  da              Float     @default(0)
+  ta              Float     @default(0)
+  specialAllow    Float     @default(0)
+  otAmount        Float     @default(0)
+  otherEarnings   Float     @default(0)
+  grossSalary     Float     @default(0)
+  // Deductions
+  pf              Float     @default(0)
+  esi             Float     @default(0)
+  tds             Float     @default(0)
+  advance         Float     @default(0)
+  otherDeductions Float     @default(0)
+  totalDeductions Float     @default(0)
+  netSalary       Float     @default(0)
+  // Corrections (employee/admin edits)
+  corrections     Json?
+  correctedBy     String?
+  correctedAt     DateTime?
+  correctionNotes String?
+  // Output
+  pdfUrl          String?
+  generatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  import ETimeOfficeImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@map("etimeoffice_salary_slips")
+}
+

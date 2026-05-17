@@ -27,6 +27,9 @@ import {
   Clock,
   Settings2,
   ClipboardList,
+  UserPlus,
+  BookUser,
+  FileSpreadsheet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +51,9 @@ const iconMap: Record<string, LucideIcon> = {
   Clock,
   Settings2,
   ClipboardList,
+  UserPlus,
+  BookUser,
+  FileSpreadsheet,
 };
 
 interface SidebarProps {
@@ -69,7 +75,16 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
   const canAccess = (feature: string) => {
     if (!user) return false;
-    if (user.role === "SUPER_ADMIN") return true;
+    if (user.role === "SUPER_ADMIN") {
+      // SUPER_ADMIN only sees platform-level admin items (companies, users, reports)
+      // Not company-specific operational items
+      const superAdminFeatures = [
+        "dashboard", "admin_companies", "admin_users", "admin_branches",
+        "admin_induction", "admin_employee_master", "admin_etimeoffice",
+        "admin_onboarding", "reports",
+      ];
+      return superAdminFeatures.includes(feature);
+    }
     if (user.role === "ADMIN") {
       // Company admins don't see the global companies list
       if (feature === "admin_companies") return false;

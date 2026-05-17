@@ -85,6 +85,9 @@ export const FEATURES = [
   { key: "admin_leave_policies", label: "Leave Policies", description: "Manage leave configurations" },
   { key: "admin_salary", label: "Salary Structures", description: "Manage employee salaries" },
   { key: "admin_onboarding", label: "Onboarding", description: "Staff onboarding, KYC & offer letters" },
+  { key: "admin_induction", label: "Employee Induction", description: "New employee induction & offer letter generation" },
+  { key: "admin_employee_master", label: "Employee Master", description: "Comprehensive employee HR records" },
+  { key: "admin_etimeoffice", label: "eTimeOffice Integration", description: "Import attendance from eTimeOffice & generate salary slips" },
 ] as const;
 
 export type FeatureKey = (typeof FEATURES)[number]["key"];
@@ -199,9 +202,27 @@ export const ADMIN_NAV_ITEMS = [
     feature: "admin_salary" as FeatureKey,
   },
   {
-    title: "Onboarding",
+    title: "Onboarding (KYC)",
     href: "/admin/onboarding",
     icon: "ClipboardList",
     feature: "admin_onboarding" as FeatureKey,
+  },
+  {
+    title: "Induction",
+    href: "/admin/induction",
+    icon: "UserPlus",
+    feature: "admin_induction" as FeatureKey,
+  },
+  {
+    title: "Employee Master",
+    href: "/admin/employee-master",
+    icon: "BookUser",
+    feature: "admin_employee_master" as FeatureKey,
+  },
+  {
+    title: "eTimeOffice",
+    href: "/admin/etimeoffice",
+    icon: "FileSpreadsheet",
+    feature: "admin_etimeoffice" as FeatureKey,
   },
 ] as const;

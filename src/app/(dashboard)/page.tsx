@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
+import { SuperAdminDashboard } from "./super-admin-dashboard";
+import type { SessionUser } from "@/types";
 
 interface DashboardStats {
   isPersonal?: boolean;
@@ -105,7 +107,12 @@ function tierColor(tier: string): string {
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const user = session?.user;
+  const user = session?.user as SessionUser | undefined;
+
+  // SUPER_ADMIN gets a completely different platform-level dashboard
+  if (user?.role === "SUPER_ADMIN") {
+    return <SuperAdminDashboard userName={user.firstName || "Admin"} />;
+  }
 
   const { data, isLoading, error } = useQuery<DashboardStats>({
     queryKey: ["dashboard", "stats"],
