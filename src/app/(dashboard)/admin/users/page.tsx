@@ -219,6 +219,7 @@ export default function UserManagementPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 
+  function closeModal() {
     setShowModal(false);
     setEditingId(null);
     setForm(emptyForm);
