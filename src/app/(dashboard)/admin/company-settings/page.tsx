@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Clock, Save, Loader2, AlertCircle } from "lucide-react";
+import { Clock, Save, Loader2, AlertCircle, Link2 } from "lucide-react";
 import { useState } from "react";
 
 interface CompanySettings {
@@ -10,6 +10,8 @@ interface CompanySettings {
   outTime: string;
   graceMinutes: number;
   lateThreshold: number;
+  portalSyncUrl: string | null;
+  portalSyncKey: string | null;
 }
 
 async function fetchSettings(): Promise<CompanySettings> {
@@ -187,6 +189,52 @@ export default function CompanySettingsPage() {
             <li>After grace period but before out-time = LATE (counted)</li>
             <li>Fourth late arrival (threshold+1) = marked as HALF DAY</li>
           </ul>
+        </div>
+
+        {/* Portal Integration */}
+        <div className="space-y-4 border-t border-gray-200 pt-6 dark:border-gray-800">
+          <div className="flex items-center gap-2">
+            <Link2 size={16} className="text-indigo-500" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Company Portal Integration</h2>
+          </div>
+          <p className="text-xs text-gray-500">Connect your company website so that users created there automatically sync to P&AMS. Leave blank to disable.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Portal Users Export URL
+              </label>
+              <input
+                type="url"
+                placeholder="https://nraco.in/api/pams-export/users"
+                value={settings.portalSyncUrl ?? ""}
+                onChange={(e) => setSettings({ ...settings, portalSyncUrl: e.target.value || null })}
+                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+              <p className="mt-1 text-xs text-gray-500">P&AMS calls this URL (GET) to pull users from your company portal</p>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Portal API Key
+              </label>
+              <input
+                type="password"
+                placeholder="Leave blank to keep existing"
+                value={settings.portalSyncKey ?? ""}
+                onChange={(e) => setSettings({ ...settings, portalSyncKey: e.target.value || null })}
+                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+              <p className="mt-1 text-xs text-gray-500">Bearer token set in your company portal to authorise P&AMS</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-400">
+            <p className="font-medium mb-1">Your company portal needs to expose:</p>
+            <code className="block bg-indigo-100 dark:bg-indigo-950 rounded px-2 py-1 text-xs">
+              GET {settings.portalSyncUrl || "<Portal URL>"}<br />
+              Authorization: Bearer &lt;Portal API Key&gt;<br />
+              Returns: {`{ "users": [{ "email", "firstName", "lastName", "employeeCode", "branchName" }] }`}
+            </code>
+            <p className="mt-2">P&AMS webhook (for push): <code className="bg-indigo-100 dark:bg-indigo-950 rounded px-1">POST https://pms.nraco.in/api/internal/company-sync</code> with <code className="bg-indigo-100 dark:bg-indigo-950 rounded px-1">x-pams-key</code> header</p>
+          </div>
         </div>
 
         {/* Submit Button */}

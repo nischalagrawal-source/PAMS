@@ -133,6 +133,8 @@ model Company {
   otEnabled      Boolean  @default(false)   // Whether OT pay is active
   otMonths       String[] @default([])      // Months where OT is paid, e.g. ["2026-03", "2026-12"]
   dutyHoursPerDay Float   @default(8)       // Standard duty hours for OT calculation
+  portalSyncUrl  String?  // URL of the company portal's user export API
+  portalSyncKey  String?  // Bearer key for calling the portal API
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -174,11 +176,10 @@ model User {
   isActive       Boolean  @default(true)
   profilePhoto   String?  // URL
   workMode       String   @default("office") // office | client | hybrid
+  portalSynced  Boolean  @default(false) // true = user originated from a company portal
+  portalSource  String?                  // e.g. "nraco.in"
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  company             Company              @relation(fields: [companyId], references: [id])
+  updatedAt      DateTime @updatedAt              @relation(fields: [companyId], references: [id])
   branch              Branch?              @relation(fields: [branchId], references: [id])
   assignedGeoFence    GeoFence?            @relation("AssignedGeoFence", fields: [assignedGeoFenceId], references: [id])
   featurePermissions  FeaturePermission[]

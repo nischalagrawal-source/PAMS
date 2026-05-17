@@ -18,6 +18,8 @@ const updateCompanySettingsSchema = z.object({
   otEnabled: z.boolean().optional(),
   otMonths: z.array(z.string().regex(/^\d{4}-\d{2}$/, "Month must be YYYY-MM")).optional(),
   dutyHoursPerDay: z.number().min(1).max(24).optional(),
+  portalSyncUrl: z.string().url().optional().or(z.literal("")),
+  portalSyncKey: z.string().optional(),
 });
 
 interface CompanySettings {
@@ -29,6 +31,8 @@ interface CompanySettings {
   otEnabled: boolean;
   otMonths: string[];
   dutyHoursPerDay: number;
+  portalSyncUrl: string | null;
+  portalSyncKey: string | null;
 }
 
 /**
@@ -56,6 +60,8 @@ export async function GET() {
         otEnabled: true,
         otMonths: true,
         dutyHoursPerDay: true,
+        portalSyncUrl: true,
+        portalSyncKey: true,
       },
     });
 
@@ -72,6 +78,8 @@ export async function GET() {
       otEnabled: company.otEnabled,
       otMonths: company.otMonths,
       dutyHoursPerDay: company.dutyHoursPerDay,
+      portalSyncUrl: company.portalSyncUrl,
+      portalSyncKey: company.portalSyncKey,
     };
 
     return successResponse(settings);
@@ -106,7 +114,7 @@ export async function PUT(req: NextRequest) {
       return errorResponse(msg);
     }
 
-    const { inTime, outTime, graceMinutes, lateThreshold, saturdayOffRule, otEnabled, otMonths, dutyHoursPerDay } = parsed.data;
+    const { inTime, outTime, graceMinutes, lateThreshold, saturdayOffRule, otEnabled, otMonths, dutyHoursPerDay, portalSyncUrl, portalSyncKey } = parsed.data;
 
     // Validate that outTime is after inTime
     const [inHour, inMin] = inTime.split(":").map(Number);
@@ -129,6 +137,8 @@ export async function PUT(req: NextRequest) {
         ...(otEnabled !== undefined && { otEnabled }),
         ...(otMonths !== undefined && { otMonths }),
         ...(dutyHoursPerDay !== undefined && { dutyHoursPerDay }),
+        ...(portalSyncUrl !== undefined && { portalSyncUrl: portalSyncUrl || null }),
+        ...(portalSyncKey !== undefined && portalSyncKey && { portalSyncKey }),
         updatedAt: new Date(),
       },
       select: {
@@ -140,6 +150,8 @@ export async function PUT(req: NextRequest) {
         otEnabled: true,
         otMonths: true,
         dutyHoursPerDay: true,
+        portalSyncUrl: true,
+        portalSyncKey: true,
       },
     });
 
@@ -152,6 +164,8 @@ export async function PUT(req: NextRequest) {
       otEnabled: updated.otEnabled,
       otMonths: updated.otMonths,
       dutyHoursPerDay: updated.dutyHoursPerDay,
+      portalSyncUrl: updated.portalSyncUrl,
+      portalSyncKey: updated.portalSyncKey,
     };
 
     return successResponse(settings);

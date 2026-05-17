@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users,
-  Plus,
   Pencil,
   X,
   Loader2,
@@ -20,6 +19,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Building2,
+  RefreshCw,
+  Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +40,8 @@ interface User {
   dateOfJoining: string | null;
   isActive: boolean;
   profilePhoto: string | null;
+  portalSynced: boolean;
+  portalSource: string | null;
 }
 
 type UserFormData = {
@@ -115,6 +118,10 @@ export default function UserManagementPage() {
   const [uploadResult, setUploadResult] = useState<{ created: number; total: number; results: Array<{ email: string; status: string }> } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
+  const [syncError, setSyncError] = useState("");
 
   const companiesQuery = useQuery({
     queryKey: ["admin", "companies", "lite"],
@@ -173,6 +180,7 @@ export default function UserManagementPage() {
     onError: (err: Error) => setFormError(err.message),
   });
 
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: UserFormData }) => {
       const payload: Record<string, unknown> = {
@@ -226,11 +234,26 @@ export default function UserManagementPage() {
     setFormError("");
   }
 
-  function openCreate() {
-    setForm(emptyForm);
-    setEditingId(null);
-    setShowModal(true);
-    setFormError("");
+  async function handlePortalSync() {
+    setSyncing(true);
+    setSyncError("");
+    setSyncResult(null);
+    try {
+      const body = isSuperAdmin && selectedCompanyId ? { companyId: selectedCompanyId } : {};
+      const res = await fetch("/api/admin/users/pull-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      setSyncResult(json.data);
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    } catch (err) {
+      setSyncError((err as Error).message);
+    } finally {
+      setSyncing(false);
+    }
   }
 
   async function handleBulkUpload() {
@@ -283,14 +306,8 @@ export default function UserManagementPage() {
       setFormError("First name, last name, email, and employee code are required");
       return;
     }
-    if (!editingId && !form.password) {
-      setFormError("Password is required for new users");
-      return;
-    }
     if (editingId) {
       updateMutation.mutate({ id: editingId, data: form });
-    } else {
-      createMutation.mutate(form);
     }
   }
 
@@ -325,7 +342,7 @@ export default function UserManagementPage() {
     { staff: 0, reviewer: 0, admin: 0 }
   );
 
-  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isSaving = updateMutation.isPending;
 
   function getInitials(first: string, last: string) {
     return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
@@ -358,15 +375,65 @@ export default function UserManagementPage() {
             <Upload size={16} /> Bulk Upload
           </button>
           <button
-            onClick={openCreate}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-500 hover:to-indigo-500"
+            onClick={() => { setShowSyncModal(true); setSyncResult(null); setSyncError(""); }}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-violet-500"
           >
-            <Plus size={18} /> Add User
+            <RefreshCw size={16} /> Sync from Portal
           </button>
         </div>
       </div>
 
-      {/* Bulk Upload Modal */}
+      {/* Portal Sync Modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Link2 size={18} className="text-indigo-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sync from Company Portal</h3>
+              </div>
+              <button onClick={() => setShowSyncModal(false)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} /></button>
+            </div>
+
+            <p className="mb-4 text-sm text-gray-500">Pulls the latest user list from your company portal and upserts them into P&AMS. Existing users are updated; new users are created with STAFF role.</p>
+
+            {syncError && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <span>{syncError}</span>
+              </div>
+            )}
+
+            {syncResult && (
+              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 size={18} className="text-green-600" />
+                  <span className="font-semibold text-green-800 dark:text-green-300">Sync complete!</span>
+                </div>
+                <div className="text-sm text-green-700 dark:text-green-400 space-y-1">
+                  <p>Created: <strong>{syncResult.created}</strong></p>
+                  <p>Updated: <strong>{syncResult.updated}</strong></p>
+                  <p>Skipped: <strong>{syncResult.skipped}</strong></p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowSyncModal(false)} className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300">Close</button>
+              <button
+                onClick={handlePortalSync}
+                disabled={syncing}
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+              >
+                {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                {syncing ? "Syncing..." : "Pull Now"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}}
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
@@ -487,24 +554,6 @@ export default function UserManagementPage() {
           </div>
         </div>
       </div>
-
-      {/* Company selector for SUPER_ADMIN */}
-      {isSuperAdmin && (
-        <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-900 dark:bg-indigo-950/30">
-          <Building2 size={18} className="shrink-0 text-indigo-600" />
-          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">View company:</span>
-          <select
-            value={selectedCompanyId}
-            onChange={(e) => { setSelectedCompanyId(e.target.value); setRoleFilter("ALL"); setSearchQuery(""); }}
-            className="flex-1 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-indigo-700 dark:bg-gray-900 dark:text-white"
-          >
-            <option value="">All Companies</option>
-            {(companiesQuery.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* Company selector for SUPER_ADMIN */}
       {isSuperAdmin && (
@@ -673,9 +722,14 @@ export default function UserManagementPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingId ? "Edit User" : "New User"}
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit User</h3>
+                {editingId && users.find(u => u.id === editingId)?.portalSynced && (
+                  <span className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
+                    <Link2 size={12} /> Synced from {users.find(u => u.id === editingId)?.portalSource ?? "company portal"}
+                  </span>
+                )}
+              </div>
               <button onClick={closeModal} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
                 <X size={20} />
               </button>
@@ -688,6 +742,11 @@ export default function UserManagementPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {(() => {
+                const editingUser = editingId ? users.find(u => u.id === editingId) : null;
+                const isPortalUser = !!editingUser?.portalSynced;
+                return (
+                  <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">First Name *</label>
@@ -695,8 +754,9 @@ export default function UserManagementPage() {
                     type="text"
                     value={form.firstName}
                     onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+                    readOnly={isPortalUser}
                     placeholder="John"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white ${isPortalUser ? "border-indigo-200 bg-indigo-50 text-gray-500 dark:bg-indigo-950/20" : "border-gray-300"}`}
                   />
                 </div>
                 <div>
@@ -705,8 +765,9 @@ export default function UserManagementPage() {
                     type="text"
                     value={form.lastName}
                     onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+                    readOnly={isPortalUser}
                     placeholder="Doe"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white ${isPortalUser ? "border-indigo-200 bg-indigo-50 text-gray-500 dark:bg-indigo-950/20" : "border-gray-300"}`}
                   />
                 </div>
               </div>
@@ -717,9 +778,11 @@ export default function UserManagementPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  readOnly={isPortalUser}
                   placeholder="john.doe@company.com"
-                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white ${isPortalUser ? "border-indigo-200 bg-indigo-50 text-gray-500 dark:bg-indigo-950/20" : "border-gray-300"}`}
                 />
+                {isPortalUser && <p className="mt-1 text-xs text-indigo-500">Name and email are managed by the company portal</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -747,13 +810,13 @@ export default function UserManagementPage() {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {editingId ? "Password (leave blank to keep current)" : "Password *"}
+                  Password (leave blank to keep current)
                 </label>
                 <input
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder={editingId ? "Leave blank to keep unchanged" : "Enter password"}
+                  placeholder="Leave blank to keep unchanged"
                   className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 />
               </div>
@@ -848,9 +911,12 @@ export default function UserManagementPage() {
                   className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
                 >
                   {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  {editingId ? "Update" : "Create"}
+                  Update
                 </button>
               </div>
+                  </>
+                );
+              })()} 
             </form>
           </div>
         </div>
